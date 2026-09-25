@@ -1,8 +1,8 @@
-FROM nginx:alpine
-
-# Render (und ähnliche Hosts) geben den Port über $PORT vor
-ENV PORT=10000
-COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
-COPY index.html /usr/share/nginx/html/
-
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production PORT=10000 DATA_DIR=/app/data
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY server.js index.html ./
 EXPOSE 10000
+CMD ["node", "server.js"]

@@ -202,6 +202,51 @@
     .garage{max-height:62%}
   }
   @media (prefers-reduced-motion: reduce){ .knapp.zeigen{animation-duration:.01s} }
+  /* Online */
+  .nur-online{display:none}
+  .online .nur-online{display:flex}
+  .online .knopf.nur-online{display:block}
+  .knopf-reihe{gap:10px}
+  .knopf-reihe .knopf{flex:1;font-size:19px}
+  .fahrer-wahl{display:flex;align-items:center;gap:10px;min-width:0}
+  .fahrer-wahl b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .klein-knopf{font-family:inherit;font-size:15px;font-weight:700;border-radius:6px;border:2px solid rgba(255,255,255,.45);background:transparent;color:#fff;padding:3px 10px;cursor:pointer;min-height:34px;white-space:nowrap}
+  .klein-knopf:focus-visible{outline:3px solid var(--natrium);outline-offset:2px}
+  .online-punkt{font-size:14px;font-weight:600;opacity:.8;margin-left:4px}
+  .online-punkt::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#8a8f99;margin-right:5px;vertical-align:1px}
+  .online-punkt.an::before{background:#6ee29a;box-shadow:0 0 6px #6ee29a}
+  .eingabefeld{width:100%;font-family:inherit;font-size:24px;font-weight:700;padding:10px 12px;border-radius:8px;border:2px solid rgba(243,245,247,.6);
+    background:rgba(0,0,0,.25);color:#fff;-webkit-user-select:text;user-select:text;touch-action:auto}
+  .eingabefeld:focus{outline:3px solid var(--natrium);outline-offset:2px}
+  .eingabefeld::placeholder{color:rgba(255,255,255,.4)}
+  .hinweis{font-size:16px;font-weight:600;opacity:.85;margin:8px 0 16px;min-height:1.2em}
+  .hinweis.fehler{color:#ffd0d4;opacity:1}
+  .liste-schild{display:flex;flex-direction:column;max-height:calc(100% - 10px)}
+  .rang{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:baseline;padding:8px 6px;border-top:2px solid rgba(243,245,247,.2);font-size:19px;font-weight:600}
+  .rang .nr{font-weight:800;opacity:.8}
+  .rang .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rang b{font-weight:800}
+  .rang small{display:block;font-size:14px;opacity:.75;font-weight:600}
+  .rang.ich{background:rgba(255,255,255,.14);border-radius:6px}
+  .rang.aus-rang{opacity:.55}
+  .gelb .rang{border-top-color:rgba(27,27,27,.25)}
+  .gelb .rang.ich{background:rgba(0,0,0,.1)}
+  .rang .ok{color:#6ee29a;font-weight:800}
+  .leer-text{padding:18px 6px;font-size:18px;font-weight:600;opacity:.8}
+  .rennen-warten{margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(0,0,0,.12);font-size:18px;font-weight:700}
+  .countdown{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:clamp(90px,18vw,170px);font-weight:800;color:var(--schildweiss);
+    text-shadow:0 0 40px rgba(21,83,168,.9),0 6px 0 rgba(0,0,0,.35);pointer-events:none;opacity:0;transition:opacity .2s}
+  .countdown.an{opacity:1}
+  .renn-hud{position:fixed;right:calc(18px + env(safe-area-inset-right,0px));top:calc(64px + env(safe-area-inset-top,0px));pointer-events:none;display:none;
+    background:rgba(10,12,28,.55);border-radius:8px;padding:8px 12px;min-width:190px;backdrop-filter:blur(6px);font-weight:700}
+  .renn-hud.an{display:block}
+  .renn-zeit{font-size:26px;font-weight:800;text-align:right}
+  .renn-stand{list-style:none;margin:4px 0 0;padding:0;font-size:16px}
+  .renn-stand li{display:flex;justify-content:space-between;gap:12px;padding:2px 0}
+  .renn-stand li.ich{color:var(--natrium)}
+  .renn-stand li.aus-rang{opacity:.5;text-decoration:line-through}
+  .renn-stand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+  @media (max-width:560px){ .renn-hud{min-width:150px;top:calc(58px + env(safe-area-inset-top,0px))} .renn-stand{font-size:14px} }
 </style>
 </head>
 <body>
@@ -272,6 +317,7 @@
       <button data-wert="schnell" aria-pressed="false">Schnell</button>
     </div></div>
     <div class="zeile"><span>Münzen</span><b class="konto"><i class="muenze"></i><span id="kontoMenue">0</span></b></div>
+    <div class="zeile nur-online"><span>Fahrer <small class="online-punkt" id="onlineStatus"></small></span><span class="fahrer-wahl"><b id="fahrerName">–</b><button class="klein-knopf" id="nameAendern">Name wählen</button></span></div>
     <div class="zeile nur-touch"><span>Steuerung</span><div class="wahl" id="steuerWahl">
       <button data-modus="wischen" aria-pressed="true">Wischen</button>
       <button data-modus="tippen" aria-pressed="false">Tippen</button>
@@ -284,6 +330,10 @@
     <div class="hochkant">Quer gehalten siehst du mehr von der Straße.</div>
     <button class="knopf" id="start">Losfahren</button>
     <button class="knopf zweit" id="garageOeffnen">Garage</button>
+    <div class="knopf-reihe nur-online">
+      <button class="knopf zweit" id="rennenOeffnen">Online-Rennen</button>
+      <button class="knopf zweit" id="listeOeffnen">Bestenliste</button>
+    </div>
   </div>
 </div>
 
@@ -296,10 +346,71 @@
     <div class="zeile"><span>Schwierigkeit</span><b id="endeStufe">Normal</b></div>
     <div class="zeile"><span>Knappe Manöver</span><b id="endeKnapp">0</b></div>
     <div class="zeile"><span>Rekord auf dieser Stufe</span><b id="endeRekord">0</b></div>
-    <div class="zeile" style="margin-bottom:18px"><span>Münzen <small id="endeMuenzDetail" style="font-weight:600;opacity:.75"></small></span><b class="konto"><i class="muenze"></i><span id="endeMuenzen">+0</span></b></div>
+    <div class="zeile"><span>Münzen <small id="endeMuenzDetail" style="font-weight:600;opacity:.75"></small></span><b class="konto"><i class="muenze"></i><span id="endeMuenzen">+0</span></b></div>
+    <div class="zeile" id="endeWeltZeile" hidden><span>Bestenliste</span><b id="endeWelt">…</b></div>
+    <div class="rennen-warten" id="endeRennen" hidden></div>
+    <div style="height:18px"></div>
     <button class="knopf" id="nochmal">Nochmal fahren</button>
     <button class="knopf zweit" id="garageVonEnde">Garage</button>
+    <button class="knopf zweit nur-online" id="listeVonEnde">Bestenliste</button>
   </div>
+</div>
+
+<div class="ebene aus" id="namensDialog">
+  <div class="schild" role="dialog" aria-labelledby="nameTitel">
+    <h1 id="nameTitel">Dein Name</h1>
+    <div class="unter">So erscheinst du in der Bestenliste und bei Online-Rennen.</div>
+    <input class="eingabefeld" id="nameFeld" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="z. B. Nachtfalke">
+    <div class="hinweis" id="nameHinweis">3–16 Zeichen: Buchstaben, Ziffern, Leerzeichen, _ - .</div>
+    <button class="knopf" id="nameSpeichern">Speichern</button>
+    <button class="knopf zweit" id="nameAbbrechen">Später</button>
+  </div>
+</div>
+
+<div class="ebene aus" id="bestenliste">
+  <div class="schild liste-schild" role="dialog" aria-labelledby="listeTitel">
+    <h1 id="listeTitel">Bestenliste</h1>
+    <div class="reiter" id="listeReiter" role="tablist">
+      <button role="tab" data-stufe="leicht" aria-selected="false">Leicht</button>
+      <button role="tab" data-stufe="normal" aria-selected="true">Normal</button>
+      <button role="tab" data-stufe="schwer" aria-selected="false">Schwer</button>
+    </div>
+    <div class="liste" id="listeInhalt"></div>
+    <div class="hinweis" id="listeIch"></div>
+    <button class="knopf" id="listeZurueck">Zurück</button>
+  </div>
+</div>
+
+<div class="ebene aus" id="lobby">
+  <div class="schild liste-schild" role="dialog" aria-labelledby="lobbyTitel">
+    <h1 id="lobbyTitel">Online-Rennen</h1>
+    <div class="unter" style="font-size:17px">3 Minuten auf derselben Stufe. Die meisten Punkte gewinnen. Nach einem Unfall bist du raus, deine Punkte zählen trotzdem.</div>
+    <div class="zeile"><span>Stufe</span><div class="wahl" id="lobbyStufe">
+      <button data-stufe="leicht" aria-pressed="false">Leicht</button>
+      <button data-stufe="normal" aria-pressed="true">Normal</button>
+      <button data-stufe="schwer" aria-pressed="false">Schwer</button>
+    </div></div>
+    <div class="liste" id="lobbyListe"></div>
+    <div class="hinweis" id="lobbyStatus"></div>
+    <button class="knopf" id="bereitKnopf">Bereit</button>
+    <button class="knopf zweit" id="lobbyVerlassen">Verlassen</button>
+  </div>
+</div>
+
+<div class="ebene aus" id="rennErgebnis">
+  <div class="schild gelb liste-schild" role="dialog" aria-labelledby="ergebnisTitel">
+    <h1 id="ergebnisTitel">Zieleinlauf</h1>
+    <div class="unter" id="ergebnisText"></div>
+    <div class="liste" id="ergebnisListe"></div>
+    <button class="knopf" id="ergebnisLobby">Zur Lobby</button>
+    <button class="knopf zweit" id="ergebnisMenue">Hauptmenü</button>
+  </div>
+</div>
+
+<div class="countdown" id="countdown" aria-live="assertive"></div>
+<div class="renn-hud" id="rennHud" aria-live="off">
+  <div class="renn-zeit" id="rennZeit">3:00</div>
+  <ol class="renn-stand" id="rennStand"></ol>
 </div>
 
 <div class="ebene aus garage-ebene" id="garage">
@@ -1305,15 +1416,17 @@ function entferneAuto(i){
 /* ---------- Eingabe ---------- */
 const tasten = { ArrowLeft:'links', KeyA:'links', ArrowRight:'rechts', KeyD:'rechts', ArrowUp:'gas', KeyW:'gas', ArrowDown:'bremse', KeyS:'bremse' };
 addEventListener('keydown', e => {
+  if (e.target && e.target.tagName === 'INPUT') return;
   if (tasten[e.code]){ eingabe[tasten[e.code]] = true; e.preventDefault(); }
   if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyN') && !e.repeat && zustand === 'fahrt'){ e.preventDefault(); nitroZuenden(); }
   if (e.code === 'Escape' && zustand === 'garage'){ garageSchliessen(); return; }
+  if (e.code === 'Escape' && online.overlayOffen()){ online.overlaySchliessen(); return; }
   if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat){
-    if ((zustand === 'menue' || zustand === 'ende') && !(e.target && e.target.closest && e.target.closest('button'))){ e.preventDefault(); starten(); }
+    if ((zustand === 'menue' || zustand === 'ende') && !online.overlayOffen() && !online.imRennen() && !(e.target && e.target.closest && e.target.closest('button'))){ e.preventDefault(); starten(); }
     else if (zustand === 'pause'){ e.preventDefault(); fortsetzen(); }
   }
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat){
-    if (zustand === 'fahrt') pausieren(); else if (zustand === 'pause') fortsetzen();
+    if (zustand === 'fahrt' && !online.imRennen()) pausieren(); else if (zustand === 'pause') fortsetzen();
   }
   if (e.code === 'KeyM' && !e.repeat) tonUmschalten();
 });
@@ -1418,7 +1531,7 @@ steuerWahl.addEventListener('click', async e => {
   steuerModusSetzen(b.dataset.modus);
 });
 steuerModusSetzen(steuerModus);
-$('pauseKnopf').addEventListener('click', () => { if (zustand === 'fahrt') pausieren(); });
+$('pauseKnopf').addEventListener('click', () => { if (zustand === 'fahrt' && !online.imRennen()) pausieren(); });
 $('start').addEventListener('click', starten);
 $('nochmal').addEventListener('click', starten);
 $('weiter').addEventListener('click', fortsetzen);
@@ -1667,7 +1780,7 @@ function crash(a){
   funkenSpruehen(spielerX, 0.6, -1.5, 1.2);
   klang.crash();
 }
-function spielEnde(){
+function spielEnde(zeitUm = false){
   zustand = 'ende'; wachHalten(false);
   const neu = punkte > rekord;
   if (neu){ rekord = Math.floor(punkte); speicher.schreib('bs_rekord_' + stufe, rekord); }
@@ -1682,10 +1795,12 @@ function spielEnde(){
   stand.muenzen += verdient; speichern(); kontoAnzeigen();
   $('endeMuenzen').textContent = '+' + verdient.toLocaleString('de-DE');
   $('endeMuenzDetail').textContent = `(${laufMuenzen} eingesammelt, ${bonus} Punktebonus${wetter === 'regen' ? ', Regen +25 %' : ''})`;
-  $('endeText').textContent = ['Die Leitplanke hat gewonnen.', 'Das war zu knapp.', 'Warnblinker an, Dreieck raus.', 'Die Versicherung ruft an.'][Math.random()*4|0];
+  $('endeText').textContent = zeitUm ? 'Die Zeit ist abgelaufen.' : ['Die Leitplanke hat gewonnen.', 'Das war zu knapp.', 'Warnblinker an, Dreieck raus.', 'Die Versicherung ruft an.'][Math.random()*4|0];
+  $('endeTitel').textContent = zeitUm ? 'Ziel' : 'Unfall';
   rekordAnzeigen();
   zeige('ende', true); $('hud').classList.remove('an');
-  setTimeout(() => $('nochmal').focus(), 60);
+  online.fahrtBeendet({ stufe, punkte:Math.floor(punkte), strecke:(distanz - startDistanz)/1000, dauer:zeit, knapp:knappZaehler });
+  setTimeout(() => ($('nochmal').hidden ? $('garageVonEnde') : $('nochmal')).focus(), 60);
 }
 
 /* ---------- Update ---------- */
@@ -2006,6 +2121,7 @@ function update(dt){
   himmelMat.uniforms.blitz.value = bl;
   hemi.intensity = 0.5 + bl*1.6;
   blitzWert = bl;
+  online.update(dt);
 }
 
 /* ---------- Nachbearbeitung (Bloom, Farblook, Vignette) ---------- */
@@ -2088,6 +2204,408 @@ wahlVerbinden('grafikWahl', grafik, w => { grafik = w; speicher.schreib('bs_graf
 wahlVerbinden('wetterWahl', wetter, w => { wetter = w; speicher.schreib('bs_wetter', w); klang.init(); wetterAnwenden(); });
 grafikAnwenden();
 wetterAnwenden();
+
+/* ---------- Online: Fahrername, Bestenliste, Rennen ---------- */
+const online = (() => {
+  const MOEGLICH = /^https?:$/.test(location.protocol);
+  const OVERLAYS = ['namensDialog', 'bestenliste', 'lobby', 'rennErgebnis'];
+  let konto = speicher.lies('bs_konto', null);   // { id, name, token }
+  let erreichbar = false, ws = null, wsVersuch = 0, wsTimer = null;
+  let zurueckZu = 'menue', nachName = null, letzteFahrt = null, listeStufe = stufe;
+  let lobbyDaten = null, lobbyOffen = false;
+  const rs = { phase:'aus', alteStufe:null, restMs:0, fahrer:[], ergebnis:null, sendenT:0, ausGemeldet:false };
+  const geister = new Map();
+  const $k = (tag, klasse, text) => { const e = document.createElement(tag); if (klasse) e.className = klasse; if (text !== undefined) e.textContent = text; return e; };
+  const zeitText = ms => { const s = Math.ceil(ms/1000); return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0'); };
+
+  async function api(pfad, methode = 'GET', daten){
+    const kopf = { 'Content-Type':'application/json' };
+    if (konto) kopf.Authorization = 'Bearer ' + konto.token;
+    const r = await fetch(pfad, { method:methode, headers:kopf, body:daten ? JSON.stringify(daten) : undefined, cache:'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j.fehler || 'Der Server antwortet nicht.'), { status:r.status });
+    return j;
+  }
+  function kontoSetzen(k){ konto = k; speicher.schreib('bs_konto', k); fahrerAnzeigen(); }
+  function fahrerAnzeigen(){
+    $('fahrerName').textContent = konto ? konto.name : '–';
+    $('nameAendern').textContent = konto ? 'Ändern' : 'Name wählen';
+  }
+
+  /* --- Overlays --- */
+  function overlayZeigen(id){
+    OVERLAYS.forEach(o => zeige(o, o === id));
+    zeige('menue', false); zeige('ende', false);
+  }
+  function overlaysZu(){
+    OVERLAYS.forEach(o => zeige(o, false));
+    if (zurueckZu === 'ende' && zustand === 'ende') zeige('ende', true);
+    else if (zustand === 'menue'){ zeige('menue', true); if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50); }
+  }
+  const offen = id => !$(id).classList.contains('aus');
+  function overlayOffen(){ return OVERLAYS.some(offen); }
+  function overlaySchliessen(){
+    if (offen('namensDialog')) nameAbbrechen();
+    else if (offen('bestenliste')) overlaysZu();
+    else if (offen('lobby')) lobbyVerlassen();
+    else if (offen('rennErgebnis')) ergebnisZuLobby();
+  }
+  function vomEndeWeg(){
+    if (zustand === 'ende'){ spielerZuruecksetzen(); zustand = 'menue'; }
+    zurueckZu = 'menue';
+  }
+
+  /* --- Name --- */
+  function nameDialog(danach){
+    nachName = danach || null;
+    zurueckZu = zustand === 'ende' ? 'ende' : 'menue';
+    const f = $('nameFeld'); f.value = konto ? konto.name : '';
+    const h = $('nameHinweis'); h.classList.remove('fehler'); h.textContent = '3–16 Zeichen: Buchstaben, Ziffern, Leerzeichen, _ - .';
+    $('nameTitel').textContent = konto ? 'Name ändern' : 'Dein Name';
+    overlayZeigen('namensDialog');
+    setTimeout(() => f.focus(), 60);
+  }
+  function nameAbbrechen(){ nachName = null; overlaysZu(); }
+  async function nameSpeichern(){
+    const name = $('nameFeld').value.trim(), h = $('nameHinweis'), knopf = $('nameSpeichern');
+    knopf.disabled = true; h.classList.remove('fehler'); h.textContent = 'Einen Moment …';
+    try {
+      const neu = konto ? await api('/api/umbenennen', 'POST', { name }) : await api('/api/spieler', 'POST', { name });
+      kontoSetzen({ id:neu.id, name:neu.name, token:neu.token || konto.token });
+      verbinden();
+      if (letzteFahrt && !letzteFahrt.gesendet) ergebnisSenden(letzteFahrt);
+      const weiter = nachName; nachName = null;
+      overlaysZu();
+      if (weiter) weiter();
+    } catch (e) {
+      h.classList.add('fehler'); h.textContent = e.message;
+    } finally { knopf.disabled = false; }
+  }
+  $('nameSpeichern').addEventListener('click', nameSpeichern);
+  $('nameAbbrechen').addEventListener('click', nameAbbrechen);
+  $('nameFeld').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); nameSpeichern(); } else if (e.key === 'Escape') nameAbbrechen(); });
+  $('nameAendern').addEventListener('click', () => nameDialog());
+
+  /* --- Bestenliste --- */
+  async function listeLaden(){
+    const box = $('listeInhalt'); box.replaceChildren($k('div', 'leer-text', 'Lade …'));
+    $('listeReiter').querySelectorAll('button').forEach(b => b.setAttribute('aria-selected', b.dataset.stufe === listeStufe));
+    try {
+      const d = await api('/api/bestenliste?stufe=' + listeStufe);
+      if (d.stufe !== listeStufe) return;
+      box.replaceChildren();
+      if (!d.eintraege.length) box.append($k('div', 'leer-text', 'Noch keine Einträge – fahr die erste Bestzeit!'));
+      d.eintraege.forEach(e => {
+        const z = $k('div', 'rang' + (konto && e.id === konto.id ? ' ich' : ''));
+        const nm = $k('div', 'nm', e.name); nm.append($k('small', '', e.strecke.toLocaleString('de-DE', { maximumFractionDigits:1 }) + ' km'));
+        z.append($k('span', 'nr', e.platz + '.'), nm, $k('b', '', fmt(e.punkte)));
+        box.append(z);
+      });
+      $('listeIch').textContent = d.ich ? `Du: Platz ${d.ich.platz} von ${d.gesamt} mit ${fmt(d.ich.punkte)} Punkten`
+        : konto ? 'Du hast auf dieser Stufe noch keine gewertete Fahrt.' : 'Wähle einen Namen, damit deine Fahrten gewertet werden.';
+    } catch (e) { box.replaceChildren($k('div', 'leer-text', e.message)); $('listeIch').textContent = ''; }
+  }
+  function listeOeffnen(){
+    zurueckZu = zustand === 'ende' ? 'ende' : 'menue';
+    listeStufe = stufe;
+    overlayZeigen('bestenliste'); listeLaden();
+    setTimeout(() => $('listeZurueck').focus(), 60);
+  }
+  $('listeReiter').addEventListener('click', e => { const b = e.target.closest('button'); if (b){ listeStufe = b.dataset.stufe; listeLaden(); } });
+  $('listeOeffnen').addEventListener('click', listeOeffnen);
+  $('listeVonEnde').addEventListener('click', listeOeffnen);
+  $('listeZurueck').addEventListener('click', overlaysZu);
+
+  async function ergebnisSenden(f){
+    const zeile = $('endeWeltZeile'), wert = $('endeWelt');
+    zeile.hidden = false;
+    if (!konto){ wert.textContent = 'Name wählen, um gewertet zu werden'; return; }
+    wert.textContent = '…';
+    try {
+      const r = await api('/api/ergebnis', 'POST', f);
+      f.gesendet = true;
+      if (letzteFahrt === f) wert.textContent = (r.platz ? `Platz ${r.platz} von ${r.gesamt}` : 'gewertet') + (r.neuerBestwert ? ' · neue Bestleistung' : '');
+    } catch (e) { if (letzteFahrt === f) wert.textContent = 'nicht gewertet'; }
+  }
+
+  /* --- Verbindung --- */
+  function verbinden(){
+    if (!MOEGLICH || !erreichbar || !konto) return;
+    clearTimeout(wsTimer);
+    if (ws){ ws.onclose = null; ws.close(); }
+    const w = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?token=' + encodeURIComponent(konto.token));
+    ws = w;
+    w.onopen = () => { wsVersuch = 0; statusSetzen(true); if (lobbyOffen) senden({ t:'beitreten' }); };
+    w.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (_) { return; } nachricht(m); };
+    w.onclose = e => {
+      if (ws !== w) return;
+      ws = null; statusSetzen(false);
+      if (rs.phase !== 'aus') rennenAbbrechen('Verbindung zum Server verloren.');
+      if (e.code === 4001){ kontoPruefen(); return; }
+      if (e.code === 4002) return;
+      wsTimer = setTimeout(verbinden, Math.min(15000, 1500*Math.pow(1.6, wsVersuch++)));
+    };
+  }
+  const senden = m => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
+  function statusSetzen(an, text){
+    const s = $('onlineStatus');
+    s.classList.toggle('an', an);
+    s.textContent = text || (an ? 'online' : 'offline');
+  }
+  // Wenn der Server seine Daten verloren hat (z. B. nach einem Neustart ohne Festplatte), denselben Namen neu anlegen.
+  async function kontoPruefen(){
+    if (!konto) return;
+    try { await api('/api/ich'); verbinden(); }
+    catch (e) {
+      if (e.status !== 401) return;
+      const alt = konto.name; konto = null;
+      try { const neu = await api('/api/spieler', 'POST', { name:alt }); kontoSetzen({ id:neu.id, name:neu.name, token:neu.token }); verbinden(); }
+      catch (_) { speicher.schreib('bs_konto', null); fahrerAnzeigen(); }
+    }
+  }
+
+  function nachricht(m){
+    switch (m.t){
+      case 'online':
+        statusSetzen(true, m.anzahl + ' online');
+        $('rennenOeffnen').textContent = m.inLobby ? `Online-Rennen (${m.inLobby})` : 'Online-Rennen';
+        break;
+      case 'lobby': lobbyDaten = m; lobbyZeichnen(); break;
+      case 'abbruch': if (rs.phase === 'countdown') rennenAbbrechen(m.grund); break;
+      case 'countdown': if (lobbyOffen) countdownStarten(m); break;
+      case 'stand':
+        if (rs.phase === 'aus' || rs.phase === 'countdown') break;
+        rs.fahrer = m.fahrer; rs.restMs = m.restMs;
+        m.fahrer.forEach(f => { if (konto && f.id === konto.id) return; geistSetzen(f); });
+        standZeichnen();
+        break;
+      case 'ergebnis': rennErgebnis(m.rangliste); break;
+    }
+  }
+
+  /* --- Lobby --- */
+  function rennenOeffnen(){
+    if (!konto){ nameDialog(rennenOeffnen); return; }
+    vomEndeWeg();
+    lobbyOffen = true; senden({ t:'beitreten' });
+    if (!ws) verbinden();
+    overlayZeigen('lobby'); lobbyZeichnen();
+    setTimeout(() => $('bereitKnopf').focus(), 60);
+  }
+  function lobbyVerlassen(){
+    lobbyOffen = false; senden({ t:'verlassen' });
+    zurueckZu = 'menue'; overlaysZu();
+  }
+  function lobbyZeichnen(){
+    const box = $('lobbyListe'), st = $('lobbyStatus'), knopf = $('bereitKnopf');
+    const d = lobbyDaten;
+    if (!ws || !d){ box.replaceChildren($k('div', 'leer-text', ws ? 'Verbinde …' : 'Keine Verbindung zum Server.')); st.textContent = ''; knopf.disabled = true; return; }
+    $('lobbyStufe').querySelectorAll('button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.stufe === d.stufe); b.disabled = d.phase !== 'warten'; });
+    box.replaceChildren();
+    d.mitglieder.forEach(mg => {
+      const z = $k('div', 'rang' + (konto && mg.id === konto.id ? ' ich' : ''));
+      const status = d.phase === 'rennen' ? (mg.faehrt ? 'fährt' : 'wartet') : mg.bereit ? 'bereit ✓' : 'nicht bereit';
+      z.append($k('span', 'nr', '●'), $k('div', 'nm', mg.name), $k('span', mg.bereit ? 'ok' : '', status));
+      box.append(z);
+    });
+    const ich = konto && d.mitglieder.find(x => x.id === konto.id);
+    knopf.disabled = d.phase !== 'warten' || !ich;
+    knopf.textContent = ich && ich.bereit ? 'Doch nicht bereit' : 'Bereit';
+    st.textContent = d.phase === 'rennen' ? `Gerade läuft ein Rennen (noch ${zeitText(d.restMs)}). Du bist beim nächsten dabei.`
+      : d.phase === 'countdown' ? 'Gleich geht es los!'
+      : d.mitglieder.length < 2 ? 'Warte auf mindestens einen weiteren Fahrer. Schick den Link an Freunde!'
+      : 'Sobald alle bereit sind, startet das Rennen.';
+  }
+  $('rennenOeffnen').addEventListener('click', rennenOeffnen);
+  $('lobbyVerlassen').addEventListener('click', lobbyVerlassen);
+  $('bereitKnopf').addEventListener('click', () => {
+    const ich = lobbyDaten && konto && lobbyDaten.mitglieder.find(x => x.id === konto.id);
+    senden({ t:'bereit', bereit:!(ich && ich.bereit) });
+  });
+  $('lobbyStufe').addEventListener('click', e => { const b = e.target.closest('button'); if (b) senden({ t:'stufe', stufe:b.dataset.stufe }); });
+
+  /* --- Rennen --- */
+  function countdownStarten(m){
+    rs.phase = 'countdown'; rs.ergebnis = null; rs.fahrer = []; rs.restMs = m.dauerMs; rs.ausGemeldet = false;
+    if (rs.alteStufe === null) rs.alteStufe = stufe;
+    stufe = m.stufe; S = STUFEN[stufe]; rekord = speicher.lies('bs_rekord_' + stufe, 0); rekordAnzeigen();
+    klang.init();
+    if (zustand === 'garage') garageSchliessen();
+    vomEndeWeg();
+    OVERLAYS.forEach(o => zeige(o, false)); zeige('menue', false); zeige('ende', false);
+    const cd = $('countdown'), ende = performance.now() + m.inMs;
+    const tick = () => {
+      if (rs.phase !== 'countdown'){ cd.classList.remove('an'); return; }
+      const rest = ende - performance.now();
+      if (rest <= 0){
+        cd.textContent = 'Los!'; setTimeout(() => cd.classList.remove('an'), 700);
+        rs.phase = 'faehrt'; starten();
+        $('rennHud').classList.add('an'); standZeichnen();
+        return;
+      }
+      cd.textContent = rest > 3000 ? 'Bereit?' : Math.ceil(rest/1000); cd.classList.add('an');
+      setTimeout(tick, 100);
+    };
+    tick();
+  }
+  function stufeZurueck(){
+    if (rs.alteStufe !== null){ stufeSetzen(rs.alteStufe); rs.alteStufe = null; }
+  }
+  function rennenAbbrechen(grund){
+    const warCountdown = rs.phase === 'countdown';
+    rs.phase = 'aus'; geisterLeeren(); $('rennHud').classList.remove('an'); $('countdown').classList.remove('an');
+    $('endeRennen').hidden = true; $('nochmal').hidden = false;
+    if (zustand !== 'fahrt' && zustand !== 'crash') stufeZurueck();
+    if (warCountdown && lobbyOffen){ overlayZeigen('lobby'); $('lobbyStatus').textContent = grund; }
+    else if (zustand === 'ende'){ $('endeRennen').hidden = false; $('endeRennen').textContent = grund; }
+  }
+  function standZeichnen(){
+    if (rs.phase !== 'faehrt' && rs.phase !== 'wartet') return;
+    $('rennZeit').textContent = zeitText(rs.restMs);
+    const liste = rs.fahrer.map(f => konto && f.id === konto.id && rs.phase === 'faehrt' ? { ...f, p:Math.floor(punkte) } : f).sort((a, b) => b.p - a.p);
+    const ol = $('rennStand'); ol.replaceChildren();
+    liste.slice(0, 6).forEach((f, i) => {
+      const li = $k('li', (konto && f.id === konto.id ? 'ich' : '') + (f.aus ? ' aus-rang' : ''));
+      li.append($k('span', '', (i + 1) + '. ' + f.name), $k('b', '', fmt(f.p)));
+      ol.append(li);
+    });
+    if (rs.phase === 'wartet' && zustand === 'ende'){
+      const noch = rs.fahrer.filter(f => !f.aus).length;
+      $('endeRennen').hidden = false;
+      $('endeRennen').textContent = noch ? `Rennen läuft noch ${zeitText(rs.restMs)} – ${noch} ${noch === 1 ? 'Fahrer ist' : 'Fahrer sind'} noch unterwegs.` : 'Warte auf das Ergebnis …';
+    }
+  }
+  function rennErgebnis(rangliste){
+    if (rs.phase === 'aus') return;
+    rs.ergebnis = rangliste;
+    if (zustand === 'fahrt'){ spielEnde(true); return; }   // Zeit abgelaufen: fahrtBeendet zeigt das Ergebnis
+    if (zustand === 'crash' || zustand === 'pause') return; // spielEnde folgt und zeigt das Ergebnis
+    if (zustand === 'garage') garageSchliessen();
+    ergebnisZeigen();
+  }
+  function ergebnisZeigen(){
+    const rl = rs.ergebnis; rs.ergebnis = null;
+    rs.phase = 'aus'; geisterLeeren(); $('rennHud').classList.remove('an');
+    $('endeRennen').hidden = true; $('nochmal').hidden = false;
+    const box = $('ergebnisListe'); box.replaceChildren();
+    rl.forEach(e => {
+      const z = $k('div', 'rang' + (konto && e.id === konto.id ? ' ich' : ''));
+      const nm = $k('div', 'nm', e.name); nm.append($k('small', '', e.aus ? 'Unfall' : 'im Ziel'));
+      z.append($k('span', 'nr', e.platz + '.'), nm, $k('b', '', fmt(e.punkte)));
+      box.append(z);
+    });
+    const ich = konto && rl.find(e => e.id === konto.id);
+    $('ergebnisTitel').textContent = ich && ich.platz === 1 ? 'Sieg!' : 'Zieleinlauf';
+    $('ergebnisText').textContent = ich ? (ich.platz === 1 ? `Du hast gegen ${rl.length - 1} ${rl.length === 2 ? 'Gegner' : 'Gegner'} gewonnen.` : `Du bist auf Platz ${ich.platz} von ${rl.length}.`) : '';
+    zurueckZu = 'ende';
+    overlayZeigen('rennErgebnis');
+    setTimeout(() => $('ergebnisLobby').focus(), 60);
+  }
+  function ergebnisZuLobby(){ stufeZurueck(); vomEndeWeg(); rennenOeffnen(); }
+  $('ergebnisLobby').addEventListener('click', ergebnisZuLobby);
+  $('ergebnisMenue').addEventListener('click', () => { stufeZurueck(); lobbyOffen = false; senden({ t:'verlassen' }); vomEndeWeg(); overlaysZu(); });
+
+  function fahrtBeendet(f){
+    letzteFahrt = f;
+    $('endeWeltZeile').hidden = !(MOEGLICH && erreichbar);
+    if (MOEGLICH && erreichbar) ergebnisSenden(f);
+    if (rs.phase === 'faehrt' || rs.phase === 'wartet'){
+      rs.phase = 'wartet';
+      if (!rs.ausGemeldet){ rs.ausGemeldet = true; senden({ t:'pos', d:distanz - startDistanz, x:spielerX, kmh, p:punkte, aus:true }); }
+      $('nochmal').hidden = true;
+      if (rs.ergebnis) ergebnisZeigen(); else standZeichnen();
+    } else {
+      $('nochmal').hidden = false;
+      if (rs.alteStufe !== null) stufeZurueck();   // Rennen wurde unterwegs abgebrochen
+      else $('endeRennen').hidden = true;
+    }
+  }
+
+  /* --- Geisterautos der Mitspieler --- */
+  function namensSchild(name){
+    const t = canvasTex(256, 64, (x, w, h) => {
+      x.font = '700 34px "Barlow Semi Condensed", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      const b = Math.min(w - 4, x.measureText(name).width + 28);
+      x.fillStyle = 'rgba(21,83,168,.85)'; x.beginPath(); x.roundRect ? x.roundRect((w - b)/2, 6, b, h - 12, 10) : x.rect((w - b)/2, 6, b, h - 12); x.fill();
+      x.fillStyle = '#f3f5f7'; x.fillText(name, w/2, h/2 + 1, w - 20);
+    });
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:t, transparent:true, depthWrite:false, fog:false, toneMapped:false }));
+    s.scale.set(4, 1, 1); return s;
+  }
+  function geistSetzen(f){
+    let g = geister.get(f.id);
+    if (!g){
+      const auto = AUTOS[f.auto] || AUTOS.kestrel;
+      const modell = baueAuto(auto.typ, f.lack || 0xb0101c);
+      modell.traverse(o => {
+        if (!o.material) return;
+        o.material = o.material.clone();
+        o.material.transparent = true; o.material.opacity = (o.material.opacity === undefined ? 1 : o.material.opacity)*0.5; o.material.depthWrite = false;
+      });
+      const schild = namensSchild(f.name); schild.position.y = TYPEN[auto.typ].l > 5 ? 3.4 : 2.4; modell.add(schild);
+      modell.visible = false; szene.add(modell);
+      g = { modell, d:f.d, x:f.x, kmh:f.kmh, sollD:f.d, sollX:f.x, aus:f.aus };
+      geister.set(f.id, g);
+    }
+    g.sollD = f.d; g.sollX = f.x; g.kmh = f.kmh; g.aus = f.aus;
+  }
+  function geisterLeeren(){
+    geister.forEach(g => {
+      szene.remove(g.modell);
+      g.modell.traverse(o => { if (o.material){ if (o.material.map && o.isSprite && o.material.map !== glowTex) o.material.map.dispose(); o.material.dispose(); } });
+    });
+    geister.clear();
+  }
+
+  function update(dt){
+    if (rs.phase !== 'faehrt' && rs.phase !== 'wartet') return;
+    if (rs.ergebnis && zustand === 'fahrt'){ spielEnde(true); return; }
+    // eigenen Stand melden (10×/s)
+    if (rs.phase === 'faehrt' && zustand === 'fahrt'){
+      rs.sendenT -= dt;
+      if (rs.sendenT <= 0){
+        rs.sendenT = 0.1;
+        const l = LACKE.find(x => x.id === stand.lack) || LACKE[0];
+        senden({ t:'pos', d:distanz - startDistanz, x:spielerX, kmh, p:punkte, auto:stand.auto, lack:l.farbe });
+      }
+    }
+    if (rs.phase === 'faehrt' && zustand === 'crash' && !rs.ausGemeldet){
+      rs.ausGemeldet = true; senden({ t:'pos', d:distanz - startDistanz, x:spielerX, kmh, p:punkte, aus:true });
+    }
+    rs.restMs = Math.max(0, rs.restMs - dt*1000);
+    const ichD = distanz - startDistanz;
+    geister.forEach(g => {
+      if (!g.aus) g.d += g.kmh/3.6*dt;
+      g.d += (g.sollD - g.d)*Math.min(1, dt*3);
+      g.x += (g.sollX - g.x)*Math.min(1, dt*8);
+      const z = -(g.d - ichD);
+      g.modell.visible = !g.aus && z > -SICHT && z < 30 && zustand !== 'menue';
+      g.modell.position.set(g.x, 0, z);
+      g.modell.userData.raeder.forEach(r => r.rotation.x -= g.kmh/3.6*dt/0.36);
+    });
+    const zeitEl = $('rennZeit'), txt = zeitText(rs.restMs);
+    if (zeitEl.textContent !== txt) zeitEl.textContent = txt;
+  }
+
+  /* --- Start --- */
+  function init(){
+    fahrerAnzeigen();
+    if (!MOEGLICH) return;
+    fetch('/healthz', { cache:'no-store' }).then(r => r.ok ? r.json() : Promise.reject()).then(() => {
+      erreichbar = true;
+      document.documentElement.classList.add('online');
+      statusSetzen(false, 'verbinde …');
+      if (konto) kontoPruefen();
+      else {
+        statusSetzen(false, 'ohne Namen');
+        if (!speicher.lies('bs_name_gefragt', false)){ speicher.schreib('bs_name_gefragt', true); setTimeout(() => { if (zustand === 'menue' && !overlayOffen()) nameDialog(); }, 700); }
+      }
+    }).catch(() => {});
+  }
+  init();
+
+  return { update, fahrtBeendet, overlayOffen, overlaySchliessen, imRennen:() => rs.phase !== 'aus' };
+})();
 
 /* ---------- Schleife ---------- */
 let letzteZeit = performance.now();
