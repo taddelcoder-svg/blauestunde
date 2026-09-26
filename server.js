@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+const zugang = require('./zugang')({ titel:'Blaue Stunde' });
 
 const PORT = Number(process.env.PORT) || 10000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -73,6 +74,9 @@ setInterval(() => { const j = Date.now(); for (const [k, e] of zaehler) if (j > 
 
 /* ---------- HTTP ---------- */
 const INDEX = path.join(__dirname, 'index.html');
+const DATENSCHUTZ = path.join(__dirname, 'datenschutz.html');
+const VENDOR = path.join(__dirname, 'vendor');
+const TYPEN = { '.js':'text/javascript; charset=utf-8', '.woff2':'font/woff2', '.txt':'text/plain; charset=utf-8' };
 function json(res, status, daten){
   res.writeHead(status, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store' });
   res.end(JSON.stringify(daten));
@@ -91,6 +95,19 @@ const ipAus = req => (req.headers['x-forwarded-for'] || req.socket.remoteAddress
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
+    if (req.method === 'GET' && (url.pathname === '/datenschutz' || url.pathname === '/datenschutz.html')){
+      res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
+      return fs.createReadStream(DATENSCHUTZ).pipe(res);
+    }
+    if (zugang.pruefen(req, res)) return;
+    // Selbst ausgelieferte Schriften und three.js (keine Verbindung zu Google oder CDNs)
+    const vendor = /^\/vendor\/([\w-]+(?:\.[\w-]+)*\.(js|woff2|txt))$/.exec(url.pathname);
+    if (req.method === 'GET' && vendor){
+      const datei = path.join(VENDOR, vendor[1]);
+      if (!fs.existsSync(datei)) return json(res, 404, { fehler:'Nicht gefunden' });
+      res.writeHead(200, { 'Content-Type':TYPEN[path.extname(datei)], 'Cache-Control':'public, max-age=604800' });
+      return fs.createReadStream(datei).pipe(res);
+    }
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')){
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
       return fs.createReadStream(INDEX).pipe(res);
@@ -161,7 +178,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 /* ---------- Online & Rennen ---------- */
-const wss = new WebSocketServer({ server, path:'/ws', maxPayload:4096 });
+const wss = new WebSocketServer({ server, path:'/ws', maxPayload:4096, verifyClient:({ req }) => zugang.hatZugang(req) });
 const verbindungen = new Set();   // ws mit ws.spieler = {id, name}
 const lobby = {
   phase:'warten',                 // warten | countdown | rennen

@@ -10,10 +10,13 @@
 <meta name="apple-mobile-web-app-title" content="Blaue Stunde">
 <meta name="format-detection" content="telephone=no">
 <title>Blaue Stunde – Autobahn</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<meta name="robots" content="noindex, nofollow">
 <style>
+  /* Barlow Semi Condensed (SIL OFL 1.1), selbst ausgeliefert */
+  @font-face{font-family:'Barlow Semi Condensed';font-weight:500;font-display:swap;src:url(vendor/barlow-semi-condensed-500.woff2) format('woff2')}
+  @font-face{font-family:'Barlow Semi Condensed';font-weight:600;font-display:swap;src:url(vendor/barlow-semi-condensed-600.woff2) format('woff2')}
+  @font-face{font-family:'Barlow Semi Condensed';font-weight:700;font-display:swap;src:url(vendor/barlow-semi-condensed-700.woff2) format('woff2')}
+  @font-face{font-family:'Barlow Semi Condensed';font-weight:800;font-display:swap;src:url(vendor/barlow-semi-condensed-800.woff2) format('woff2')}
   :root{
     --nacht:#0b0d1c;
     --autobahnblau:#1553a8;
@@ -73,6 +76,7 @@
   .farbe{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.4);cursor:pointer;padding:0}
   .farbe[aria-pressed="true"]{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
   .steuerung{font-size:17px;font-weight:500;line-height:1.45;opacity:.9;margin:14px 0 20px}
+  .rechtliches{display:block;margin-top:14px;text-align:center;font-size:15px;color:rgba(255,255,255,.75)}
   .steuerung kbd{font-family:inherit;font-weight:700;background:rgba(255,255,255,.15);border-radius:4px;padding:0 6px}
   .knopf{width:100%;border:0;border-radius:8px;background:var(--schildweiss);color:var(--autobahnblau);font-family:inherit;font-weight:800;font-size:26px;padding:12px 16px;cursor:pointer;transition:transform .12s, background .2s}
   .knopf:hover{background:#fff}
@@ -334,6 +338,7 @@
       <button class="knopf zweit" id="rennenOeffnen">Online-Rennen</button>
       <button class="knopf zweit" id="listeOeffnen">Bestenliste</button>
     </div>
+    <a class="rechtliches" href="datenschutz" target="_blank" rel="noopener">Datenschutz</a>
   </div>
 </div>
 
@@ -435,13 +440,13 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/CopyShader.js"></script>
+<script src="vendor/LuminosityHighPassShader.js"></script>
+<script src="vendor/EffectComposer.js"></script>
+<script src="vendor/RenderPass.js"></script>
+<script src="vendor/ShaderPass.js"></script>
+<script src="vendor/UnrealBloomPass.js"></script>
 <script>
 (() => {
 'use strict';
