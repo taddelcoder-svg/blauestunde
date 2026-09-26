@@ -16,30 +16,76 @@ const RENNEN_DAUER = 180_000;   // ms
 const COUNTDOWN = 4_000;         // ms
 const LISTE_LAENGE = 25;
 
-/* ---------- Speicher (JSON-Datei) ---------- */
+/* ---------- Speicher ----------
+   Mit SUPABASE_URL und SUPABASE_SERVICE_KEY liegen Namen und Bestenliste als
+   eine Zeile in der Supabase-Tabelle „blauestunde_speicher“ (siehe
+   supabase_setup.sql) und überleben so Deploys auf Render. Ohne diese
+   Variablen wird wie bisher eine JSON-Datei in DATA_DIR benutzt. */
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const MIT_SUPABASE = !!(SUPABASE_URL && SUPABASE_KEY);
+const SPEICHER_TABELLE = `${SUPABASE_URL}/rest/v1/blauestunde_speicher`;
+const supabaseKopf = { apikey:SUPABASE_KEY, Authorization:'Bearer ' + SUPABASE_KEY };
+
 let db = { spieler:{}, bestwerte:{ leicht:{}, normal:{}, schwer:{} } };
-try {
-  const geladen = JSON.parse(fs.readFileSync(DB_DATEI, 'utf8'));
+function uebernehmen(geladen){
+  if (!geladen) return;
   db = { spieler:geladen.spieler || {}, bestwerte:Object.assign(db.bestwerte, geladen.bestwerte || {}) };
-} catch (e) { /* noch keine Daten */ }
-let speicherTimer = null;
-function speichern(){
-  if (speicherTimer) return;
-  speicherTimer = setTimeout(() => {
-    speicherTimer = null;
+}
+async function laden(){
+  if (!MIT_SUPABASE){
+    try { uebernehmen(JSON.parse(fs.readFileSync(DB_DATEI, 'utf8'))); } catch (e) { /* noch keine Daten */ }
+    return;
+  }
+  // Ohne geladene Daten nicht starten: sonst würde der erste Speichervorgang die Bestenliste überschreiben.
+  for (let versuch = 1; ; versuch++){
     try {
-      fs.mkdirSync(DATA_DIR, { recursive:true });
-      fs.writeFileSync(DB_DATEI + '.tmp', JSON.stringify(db));
-      fs.renameSync(DB_DATEI + '.tmp', DB_DATEI);
-    } catch (e) { console.error('Speichern fehlgeschlagen:', e.message); }
-  }, 1000);
+      const res = await fetch(`${SPEICHER_TABELLE}?id=eq.haupt&select=daten`, { headers:supabaseKopf });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      const zeilen = await res.json();
+      uebernehmen(zeilen[0] && zeilen[0].daten);
+      console.log('Daten aus Supabase geladen.');
+      return;
+    } catch (e) {
+      console.error(`Laden aus Supabase fehlgeschlagen (Versuch ${versuch}):`, e.message);
+      if (versuch >= 5) throw e;
+      await new Promise(ok => setTimeout(ok, 2000 * versuch));
+    }
+  }
+}
+async function schreiben(){
+  const inhalt = JSON.stringify(db);
+  if (!MIT_SUPABASE){
+    fs.mkdirSync(DATA_DIR, { recursive:true });
+    fs.writeFileSync(DB_DATEI + '.tmp', inhalt);
+    fs.renameSync(DB_DATEI + '.tmp', DB_DATEI);
+    return;
+  }
+  const res = await fetch(SPEICHER_TABELLE, {
+    method:'POST',
+    headers:{ ...supabaseKopf, 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates,return=minimal' },
+    body:`{"id":"haupt","daten":${inhalt},"geaendert_am":"${new Date().toISOString()}"}`
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+}
+let speicherTimer = null, schreibt = Promise.resolve();
+function jetztSpeichern(){
+  clearTimeout(speicherTimer); speicherTimer = null;
+  schreibt = schreibt.then(schreiben).catch(e => { console.error('Speichern fehlgeschlagen:', e.message); speicherTimer = setTimeout(jetztSpeichern, 10_000); });
+  return schreibt;
+}
+function speichern(){
+  if (!speicherTimer) speicherTimer = setTimeout(jetztSpeichern, 1000);
 }
 
 /* ---------- Fahrer ---------- */
 const hash = t => crypto.createHash('sha256').update(t).digest('hex');
-const tokenIndex = new Map(Object.entries(db.spieler).map(([id, s]) => [s.tokenHash, id]));
 const nameSchluessel = n => n.toLocaleLowerCase('de-DE');
-const nameIndex = new Map(Object.entries(db.spieler).map(([id, s]) => [nameSchluessel(s.name), id]));
+const tokenIndex = new Map(), nameIndex = new Map();
+function indizesAufbauen(){
+  tokenIndex.clear(); nameIndex.clear();
+  for (const [id, s] of Object.entries(db.spieler)){ tokenIndex.set(s.tokenHash, id); nameIndex.set(nameSchluessel(s.name), id); }
+}
 
 function nameFehler(name){
   if (typeof name !== 'string') return 'Name fehlt.';
@@ -309,4 +355,16 @@ setInterval(() => {
   verbindungen.forEach(ws => { if (!ws.lebt){ ws.terminate(); return; } ws.lebt = false; try { ws.ping(); } catch (e) {} });
 }, 25_000).unref();
 
-server.listen(PORT, () => console.log(`Blaue Stunde läuft auf Port ${PORT}`));
+// Beim Neustart (z. B. Deploy auf Render) noch ausstehende Änderungen sichern
+for (const signal of ['SIGTERM', 'SIGINT']){
+  process.on(signal, async () => {
+    if (speicherTimer) await jetztSpeichern();
+    else await schreibt;
+    process.exit(0);
+  });
+}
+
+laden().then(() => {
+  indizesAufbauen();
+  server.listen(PORT, () => console.log(`Blaue Stunde läuft auf Port ${PORT} (Speicher: ${MIT_SUPABASE ? 'Supabase' : DB_DATEI})`));
+}).catch(e => { console.error('Start abgebrochen:', e.message); process.exit(1); });

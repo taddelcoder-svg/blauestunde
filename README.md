@@ -21,9 +21,18 @@ Dann http://localhost:10000 öffnen.
 
 ## Deployment (Render)
 
-Das `Dockerfile` startet den Node-Server auf `$PORT`. Die Daten (Namen und Bestenliste) liegen in `DATA_DIR` (Standard: `/app/data`) als JSON-Datei.
+Das `Dockerfile` startet den Node-Server auf `$PORT`.
 
-**Wichtig:** Ohne Persistent Disk ist das Dateisystem auf Render flüchtig – nach jedem Deploy oder Neustart ist die Bestenliste leer. Abhilfe: in Render eine Disk anlegen und unter `/app/data` einhängen. Fahrer, deren Name verloren ging, bekommen ihn beim nächsten Besuch automatisch neu, solange ihn niemand anderes belegt hat.
+### Speicher: Supabase
+
+Namen und Bestenliste speichert der Server in Supabase, damit sie Deploys und Neustarts überleben:
+
+1. In Supabase unter **SQL Editor** den Inhalt von `supabase_setup.sql` ausführen.
+2. In Render beim Dienst unter **Environment** eintragen:
+   - `SUPABASE_URL`: die Projekt-URL, z. B. `https://xyz.supabase.co`
+   - `SUPABASE_SERVICE_KEY`: der `service_role`-Schlüssel (Supabase → Project Settings → API). Dieser Schlüssel ist geheim und gehört nie ins Repo oder in `index.html`.
+
+Ohne diese beiden Variablen nutzt der Server eine JSON-Datei in `DATA_DIR` (Standard: `/app/data`). Auf Render ist die ohne Persistent Disk nach jedem Deploy leer.
 
 ## Steuerung
 
