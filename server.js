@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const zugang = require('./zugang')({ titel:'Blaue Stunde' });
+const olymp = require('./olymp')({ spiel:'blauestunde' });
 
 const PORT = Number(process.env.PORT) || 10000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -223,133 +224,205 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-/* ---------- Online & Rennen ---------- */
+/* ---------- Online & Rennen ----------
+   Es gibt die eine offene Lobby für alle und zusätzlich je eine eigene Lobby pro Olympia-Lauf.
+   Olympia-Fahrer kommen mit einem signierten Ticket statt mit einem Fahrernamen. */
 const wss = new WebSocketServer({ server, path:'/ws', maxPayload:4096, verifyClient:({ req }) => zugang.hatZugang(req) });
-const verbindungen = new Set();   // ws mit ws.spieler = {id, name}
-const lobby = {
-  phase:'warten',                 // warten | countdown | rennen
-  stufe:'normal',
-  mitglieder:new Map(),           // id -> { ws, bereit }
-  teilnehmer:new Map(),           // id -> { name, d, x, kmh, p, aus, auto, lack }
-  startZeit:0, timer:null
-};
-
-const senden = (ws, m) => { if (ws.readyState === 1) ws.send(JSON.stringify(m)); };
-const anAlle = m => { const s = JSON.stringify(m); verbindungen.forEach(ws => { if (ws.readyState === 1) ws.send(s); }); };
-const anLobby = m => { const s = JSON.stringify(m); lobby.mitglieder.forEach(({ ws }) => { if (ws.readyState === 1) ws.send(s); }); };
-
-function lobbyZustand(){
+const verbindungen = new Set();   // ws mit ws.spieler = {id, name} und ws.lobby
+function neueLobby(olympia){
   return {
-    t:'lobby', phase:lobby.phase, stufe:lobby.stufe,
-    mitglieder:[...lobby.mitglieder].map(([id, m]) => ({ id, name:m.ws.spieler.name, bereit:m.bereit, faehrt:lobby.teilnehmer.has(id) && !lobby.teilnehmer.get(id).aus })),
-    restMs:lobby.phase === 'rennen' ? Math.max(0, lobby.startZeit + RENNEN_DAUER - Date.now()) : null
+    phase:'warten',               // warten | countdown | rennen
+    stufe:olympia && STUFEN.includes(olympia.t.c.stufe) ? olympia.t.c.stufe : 'normal',
+    mitglieder:new Map(),         // id -> { ws, bereit }
+    teilnehmer:new Map(),         // id -> { name, d, x, kmh, p, aus, auto, lack }
+    startZeit:0, timer:null,
+    olymp:olympia || null         // { t, gestartet, gemeldet, schluessel }
   };
 }
-function onlineSenden(){
-  const namen = new Set();
-  verbindungen.forEach(ws => ws.spieler && namen.add(ws.spieler.name));
-  anAlle({ t:'online', anzahl:namen.size, inLobby:lobby.mitglieder.size, phase:lobby.phase });
-  anLobby(lobbyZustand());
+const lobby = neueLobby();
+const olympLobbys = new Map();   // "lauf:gruppe" -> Lobby
+const alleLobbys = () => [lobby, ...olympLobbys.values()];
+
+const senden = (ws, m) => { if (ws.readyState === 1) ws.send(JSON.stringify(m)); };
+const anAlle = m => { const s = JSON.stringify(m); verbindungen.forEach(ws => { if (ws.readyState === 1 && !ws.olymp) ws.send(s); }); };
+const anLobby = (lb, m) => { const s = JSON.stringify(m); lb.mitglieder.forEach(({ ws }) => { if (ws.readyState === 1) ws.send(s); }); };
+
+function lobbyZustand(lb){
+  return {
+    t:'lobby', phase:lb.phase, stufe:lb.stufe,
+    mitglieder:[...lb.mitglieder].map(([id, m]) => ({ id, name:m.ws.spieler.name, bereit:m.bereit, faehrt:lb.teilnehmer.has(id) && !lb.teilnehmer.get(id).aus })),
+    restMs:lb.phase === 'rennen' ? Math.max(0, lb.startZeit + RENNEN_DAUER - Date.now()) : null,
+    olymp:lb.olymp ? olympInfo(lb) : null
+  };
+}
+function onlineSenden(lb = lobby){
+  if (lb === lobby){
+    const namen = new Set();
+    verbindungen.forEach(ws => ws.spieler && !ws.olymp && namen.add(ws.spieler.name));
+    anAlle({ t:'online', anzahl:namen.size, inLobby:lobby.mitglieder.size, phase:lobby.phase });
+  }
+  anLobby(lb, lobbyZustand(lb));
 }
 
-function vielleichtStarten(){
-  if (lobby.phase !== 'warten' || lobby.mitglieder.size < 2) return;
-  for (const m of lobby.mitglieder.values()) if (!m.bereit) return;
-  lobby.phase = 'countdown';
-  lobby.teilnehmer.clear();
-  lobby.mitglieder.forEach((m, id) => lobby.teilnehmer.set(id, { name:m.ws.spieler.name, d:0, x:0, kmh:0, p:0, aus:false, auto:'kestrel', lack:0xb0101c }));
-  anLobby({ t:'countdown', inMs:COUNTDOWN, stufe:lobby.stufe, dauerMs:RENNEN_DAUER });
-  onlineSenden();
-  lobby.timer = setTimeout(() => {
-    lobby.phase = 'rennen'; lobby.startZeit = Date.now();
-    onlineSenden();
-    lobby.timer = setTimeout(rennenBeenden, RENNEN_DAUER);
+function vielleichtStarten(lb){
+  if (lb.phase !== 'warten') return;
+  const o = lb.olymp;
+  if (o){
+    // Olympiade: ein einziges Rennen – los geht's, wenn alle Erwarteten da sind oder alle Anwesenden bereit
+    if (o.gestartet || !lb.mitglieder.size) return;
+    const da = new Set(lb.mitglieder.keys());
+    const alleDa = o.t.m.every(e => da.has(olympSpielerId(o.t, e.s)));
+    const alleBereit = [...lb.mitglieder.values()].every(m => m.bereit);
+    if (!alleDa && !alleBereit) return;
+    o.gestartet = true;
+  } else {
+    if (lb.mitglieder.size < 2) return;
+    for (const m of lb.mitglieder.values()) if (!m.bereit) return;
+  }
+  lb.phase = 'countdown';
+  lb.teilnehmer.clear();
+  lb.mitglieder.forEach((m, id) => lb.teilnehmer.set(id, { name:m.ws.spieler.name, d:0, x:0, kmh:0, p:0, aus:false, auto:'kestrel', lack:0xb0101c }));
+  anLobby(lb, { t:'countdown', inMs:COUNTDOWN, stufe:lb.stufe, dauerMs:RENNEN_DAUER });
+  onlineSenden(lb);
+  if (o) olymp.status(o.t, [...lb.teilnehmer.keys()].map(id => id.split(':').pop()), 'laeuft');
+  lb.timer = setTimeout(() => {
+    lb.phase = 'rennen'; lb.startZeit = Date.now();
+    onlineSenden(lb);
+    lb.timer = setTimeout(() => rennenBeenden(lb), RENNEN_DAUER);
   }, COUNTDOWN);
 }
-function rennenPruefen(){
-  if (lobby.phase !== 'rennen' && lobby.phase !== 'countdown') return;
-  const aktiv = [...lobby.teilnehmer.values()].filter(t => !t.aus);
-  if (!aktiv.length) rennenBeenden();
+function rennenPruefen(lb){
+  if (lb.phase !== 'rennen' && lb.phase !== 'countdown') return;
+  const aktiv = [...lb.teilnehmer.values()].filter(t => !t.aus);
+  if (!aktiv.length) rennenBeenden(lb);
 }
-function rennenBeenden(){
-  if (lobby.phase === 'warten') return;
-  clearTimeout(lobby.timer); lobby.timer = null;
-  const rangliste = [...lobby.teilnehmer].map(([id, t]) => ({ id, name:t.name, punkte:Math.floor(t.p), strecke:Math.round(t.d), aus:t.aus }))
+function rennenBeenden(lb){
+  if (lb.phase === 'warten') return;
+  clearTimeout(lb.timer); lb.timer = null;
+  const rangliste = [...lb.teilnehmer].map(([id, t]) => ({ id, name:t.name, punkte:Math.floor(t.p), strecke:Math.round(t.d), aus:t.aus }))
     .sort((a, b) => b.punkte - a.punkte).map((e, i) => ({ ...e, platz:i + 1 }));
-  const empf = new Set([...lobby.teilnehmer.keys()]);
-  lobby.phase = 'warten';
-  lobby.mitglieder.forEach(m => m.bereit = false);
+  const empf = new Set([...lb.teilnehmer.keys()]);
+  lb.phase = 'warten';
+  lb.mitglieder.forEach(m => m.bereit = false);
+  if (lb.olymp) olympMelden(lb, rangliste);
   const s = JSON.stringify({ t:'ergebnis', rangliste });
-  verbindungen.forEach(ws => { if (ws.spieler && empf.has(ws.spieler.id) && ws.readyState === 1) ws.send(s); });
-  lobby.teilnehmer.clear();
-  onlineSenden();
+  verbindungen.forEach(ws => { if (ws.spieler && ws.lobby === lb && empf.has(ws.spieler.id) && ws.readyState === 1) ws.send(s); });
+  lb.teilnehmer.clear();
+  onlineSenden(lb);
 }
 function lobbyVerlassen(ws){
-  const id = ws.spieler && ws.spieler.id; if (!id) return;
-  const mg = lobby.mitglieder.get(id);
+  const id = ws.spieler && ws.spieler.id, lb = ws.lobby; if (!id || !lb) return;
+  const mg = lb.mitglieder.get(id);
   if (!mg || mg.ws !== ws) return;   // gehört zu einer neueren Verbindung
-  lobby.mitglieder.delete(id);
-  const t = lobby.teilnehmer.get(id); if (t) t.aus = true;
-  if (lobby.phase === 'countdown' && [...lobby.teilnehmer.values()].filter(x => !x.aus).length < 2){
-    clearTimeout(lobby.timer); lobby.phase = 'warten'; lobby.teilnehmer.clear();
-    lobby.mitglieder.forEach(m => m.bereit = false);
-    anLobby({ t:'abbruch', grund:'Zu wenige Fahrer – Start abgebrochen.' });
+  lb.mitglieder.delete(id);
+  const t = lb.teilnehmer.get(id); if (t) t.aus = true;
+  if (lb.phase === 'countdown' && [...lb.teilnehmer.values()].filter(x => !x.aus).length < (lb.olymp ? 1 : 2)){
+    clearTimeout(lb.timer); lb.phase = 'warten'; lb.teilnehmer.clear();
+    lb.mitglieder.forEach(m => m.bereit = false);
+    if (lb.olymp) lb.olymp.gestartet = false;
+    anLobby(lb, { t:'abbruch', grund:'Zu wenige Fahrer – Start abgebrochen.' });
   }
-  rennenPruefen(); vielleichtStarten(); onlineSenden();
+  rennenPruefen(lb); vielleichtStarten(lb); onlineSenden(lb);
+  if (lb.olymp){
+    olympStatus(lb);
+    if (!lb.mitglieder.size && lb.phase === 'warten') setTimeout(() => { if (!lb.mitglieder.size && lb.phase === 'warten') olympLobbys.delete(lb.olymp.schluessel); }, 10 * 60_000);
+  }
+}
+
+/* ---------- Olympiade ---------- */
+const olympSpielerId = (t, s) => `olymp:${t.l}:${s}`;
+function olympInfo(lb){
+  const o = lb.olymp, da = new Set(lb.mitglieder.keys());
+  return { ...olymp.fuerBrowser(o.t), erwartet:o.t.m.map(e => ({ n:e.n, da:da.has(olympSpielerId(o.t, e.s)) })), gestartet:o.gestartet, vorbei:o.gemeldet };
+}
+function olympStatus(lb){
+  const o = lb.olymp;
+  olymp.status(o.t, [...lb.mitglieder.keys()].map(id => id.split(':').pop()), lb.phase === 'warten' ? 'warten' : 'laeuft');
+}
+function olympMelden(lb, rangliste){
+  const o = lb.olymp;
+  if (o.gemeldet) return;
+  o.gemeldet = true;
+  olymp.rangMelden(o.t, rangliste.map(e => ({ s:e.id.split(':').pop(), wert:e.punkte, text:`${e.punkte.toLocaleString('de-DE')} Punkte${e.aus ? ' · Unfall' : ''}` })));
+}
+function olympLobbyFuer(t){
+  const schluessel = t.l + ':' + t.g;
+  let lb = olympLobbys.get(schluessel);
+  if (!lb){ lb = neueLobby({ t, gestartet:false, gemeldet:false, schluessel }); olympLobbys.set(schluessel, lb); }
+  return lb;
 }
 
 // Standmeldungen im Rennen: 10× pro Sekunde
 setInterval(() => {
-  if (lobby.phase !== 'rennen') return;
-  const fahrer = [...lobby.teilnehmer].map(([id, t]) => ({ id, name:t.name, d:Math.round(t.d*10)/10, x:Math.round(t.x*100)/100, kmh:Math.round(t.kmh), p:Math.floor(t.p), aus:t.aus, auto:t.auto, lack:t.lack }));
-  const s = JSON.stringify({ t:'stand', fahrer, restMs:Math.max(0, lobby.startZeit + RENNEN_DAUER - Date.now()) });
-  lobby.teilnehmer.forEach((_, id) => { const m = lobby.mitglieder.get(id); if (m && m.ws.readyState === 1) m.ws.send(s); });
+  for (const lb of alleLobbys()){
+    if (lb.phase !== 'rennen') continue;
+    const fahrer = [...lb.teilnehmer].map(([id, t]) => ({ id, name:t.name, d:Math.round(t.d*10)/10, x:Math.round(t.x*100)/100, kmh:Math.round(t.kmh), p:Math.floor(t.p), aus:t.aus, auto:t.auto, lack:t.lack }));
+    const s = JSON.stringify({ t:'stand', fahrer, restMs:Math.max(0, lb.startZeit + RENNEN_DAUER - Date.now()) });
+    lb.teilnehmer.forEach((_, id) => { const m = lb.mitglieder.get(id); if (m && m.ws.readyState === 1) m.ws.send(s); });
+  }
 }, 100).unref();
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://x');
-  const s = spielerAusToken(url.searchParams.get('token'));
-  if (!s){ ws.close(4001, 'unbekannt'); return; }
+  const olympTicket = url.searchParams.get('olymp');
+  if (olympTicket){
+    // Olympia-Fahrer: Name und Lobby kommen aus dem Ticket, gewertet wird nur für die Olympiade
+    const t = olymp.ticketPruefen(olympTicket);
+    if (!t){ ws.close(4003, 'ticket'); return; }
+    const id = olympSpielerId(t, t.s), name = t.n;
+    ws.spieler = { id, name };
+    ws.olymp = true;
+    ws.lobby = olympLobbyFuer(t);
+    senden(ws, { t:'olympDu', id, name });
+  } else {
+    const s = spielerAusToken(url.searchParams.get('token'));
+    if (!s){ ws.close(4001, 'unbekannt'); return; }
+    ws.spieler = { id:s.id, get name(){ return (db.spieler[s.id] || s).name; } };
+    ws.lobby = lobby;
+  }
   // Ältere Verbindung desselben Fahrers ersetzen
-  verbindungen.forEach(alt => { if (alt.spieler && alt.spieler.id === s.id){ lobbyVerlassen(alt); alt.close(4002, 'ersetzt'); verbindungen.delete(alt); } });
-  ws.spieler = { id:s.id, get name(){ return (db.spieler[s.id] || s).name; } };
+  verbindungen.forEach(alt => { if (alt.spieler && alt.spieler.id === ws.spieler.id){ lobbyVerlassen(alt); alt.close(4002, 'ersetzt'); verbindungen.delete(alt); } });
   ws.lebt = true;
   verbindungen.add(ws);
-  onlineSenden();
+  onlineSenden(ws.lobby);
 
   ws.on('pong', () => { ws.lebt = true; });
   ws.on('message', roh => {
     let m; try { m = JSON.parse(roh); } catch (e) { return; }
-    const id = ws.spieler.id;
+    const id = ws.spieler.id, lb = ws.lobby;
     switch (m.t){
       case 'beitreten':
-        if (!lobby.mitglieder.has(id)) lobby.mitglieder.set(id, { ws, bereit:false });
-        onlineSenden(); break;
+        if (lb.olymp && lb.olymp.gemeldet){ senden(ws, { t:'olympVorbei' }); break; }
+        if (!lb.mitglieder.has(id)) lb.mitglieder.set(id, { ws, bereit:false });
+        else lb.mitglieder.get(id).ws = ws;
+        onlineSenden(lb);
+        if (lb.olymp){ olympStatus(lb); vielleichtStarten(lb); }
+        break;
       case 'verlassen':
         lobbyVerlassen(ws); break;
       case 'bereit': {
-        const mg = lobby.mitglieder.get(id);
-        if (mg && lobby.phase === 'warten'){ mg.bereit = !!m.bereit; onlineSenden(); vielleichtStarten(); }
+        const mg = lb.mitglieder.get(id);
+        if (mg && lb.phase === 'warten'){ mg.bereit = !!m.bereit; onlineSenden(lb); vielleichtStarten(lb); }
         break;
       }
       case 'stufe':
-        if (lobby.phase === 'warten' && lobby.mitglieder.has(id) && STUFEN.includes(m.stufe)){
-          lobby.stufe = m.stufe; lobby.mitglieder.forEach(x => x.bereit = false); onlineSenden();
+        if (!lb.olymp && lb.phase === 'warten' && lb.mitglieder.has(id) && STUFEN.includes(m.stufe)){
+          lb.stufe = m.stufe; lb.mitglieder.forEach(x => x.bereit = false); onlineSenden(lb);
         }
         break;
       case 'pos': {
-        const t = lobby.teilnehmer.get(id);
-        if (!t || t.aus || lobby.phase !== 'rennen') break;
+        const t = lb.teilnehmer.get(id);
+        if (!t || t.aus || lb.phase !== 'rennen') break;
         const num = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
         t.d = num(m.d, 0, 1e6); t.x = num(m.x, -6, 6); t.kmh = num(m.kmh, 0, 800); t.p = num(m.p, 0, 1e9);
         if (typeof m.auto === 'string' && m.auto.length < 20) t.auto = m.auto;
         if (Number.isInteger(m.lack)) t.lack = m.lack & 0xffffff;
-        if (m.aus){ t.aus = true; rennenPruefen(); }
+        if (m.aus){ t.aus = true; rennenPruefen(lb); }
         break;
       }
     }
   });
-  ws.on('close', () => { verbindungen.delete(ws); lobbyVerlassen(ws); onlineSenden(); });
+  ws.on('close', () => { verbindungen.delete(ws); lobbyVerlassen(ws); onlineSenden(ws.lobby); });
 });
 setInterval(() => {
   verbindungen.forEach(ws => { if (!ws.lebt){ ws.terminate(); return; } ws.lebt = false; try { ws.ping(); } catch (e) {} });

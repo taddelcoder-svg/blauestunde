@@ -2238,7 +2238,26 @@ wetterAnwenden();
 const online = (() => {
   const MOEGLICH = /^https?:$/.test(location.protocol);
   const OVERLAYS = ['namensDialog', 'bestenliste', 'lobby', 'rennErgebnis'];
-  let konto = speicher.lies('bs_konto', null);   // { id, name, token }
+  // Olympiade: Mit ?olymp=… im Link fährt man ohne Fahrernamen in der Lobby seines Olympia-Laufs.
+  // Das Ticket prüft der Server; gewertet wird dann nur für die Olympiade, nicht für die Bestenliste.
+  const olympia = (() => {
+    let ticket = new URLSearchParams(location.search).get('olymp');
+    try {
+      if (ticket) sessionStorage.setItem('bs_olymp', ticket);
+      else ticket = sessionStorage.getItem('bs_olymp');
+    } catch (e) {}
+    if (!ticket) return null;
+    history.replaceState(null, '', location.pathname);
+    return { ticket, info:null };
+  })();
+  function olympiaBeenden(){ try { sessionStorage.removeItem('bs_olymp'); } catch (e) {} }
+  function zurOlympiade(){
+    const ziel = olympia && olympia.info && olympia.info.zurueck;
+    olympiaBeenden();
+    if (ws){ ws.onclose = null; ws.close(); }
+    location.href = ziel || '/';
+  }
+  let konto = olympia ? null : speicher.lies('bs_konto', null);   // { id, name, token } – in der Olympiade { id, name, olymp:true }
   let erreichbar = false, ws = null, wsVersuch = 0, wsTimer = null;
   let zurueckZu = 'menue', nachName = null, letzteFahrt = null, listeStufe = stufe;
   let lobbyDaten = null, lobbyOffen = false;
@@ -2348,6 +2367,7 @@ const online = (() => {
   async function ergebnisSenden(f){
     const zeile = $('endeWeltZeile'), wert = $('endeWelt');
     zeile.hidden = false;
+    if (konto && konto.olymp){ wert.textContent = 'Olympia-Fahrt – zählt nur für die Olympiade'; return; }
     if (!konto){ wert.textContent = 'Name wählen, um gewertet zu werden'; return; }
     wert.textContent = '…';
     try {
@@ -2359,10 +2379,11 @@ const online = (() => {
 
   /* --- Verbindung --- */
   function verbinden(){
-    if (!MOEGLICH || !erreichbar || !konto) return;
+    if (!MOEGLICH || !erreichbar || (!konto && !olympia)) return;
     clearTimeout(wsTimer);
     if (ws){ ws.onclose = null; ws.close(); }
-    const w = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?token=' + encodeURIComponent(konto.token));
+    const w = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?'
+      + (olympia ? 'olymp=' + encodeURIComponent(olympia.ticket) : 'token=' + encodeURIComponent(konto.token)));
     ws = w;
     w.onopen = () => { wsVersuch = 0; statusSetzen(true); if (lobbyOffen) senden({ t:'beitreten' }); };
     w.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (_) { return; } nachricht(m); };
@@ -2371,6 +2392,7 @@ const online = (() => {
       ws = null; statusSetzen(false);
       if (rs.phase !== 'aus') rennenAbbrechen('Verbindung zum Server verloren.');
       if (e.code === 4001){ kontoPruefen(); return; }
+      if (e.code === 4003 && olympia){ olympiaFehler('Das Olympia-Ticket ist ungültig oder abgelaufen.'); return; }
       if (e.code === 4002) return;
       wsTimer = setTimeout(verbinden, Math.min(15000, 1500*Math.pow(1.6, wsVersuch++)));
     };
@@ -2393,13 +2415,29 @@ const online = (() => {
     }
   }
 
+  function olympiaFehler(text){
+    olympiaBeenden();
+    lobbyOffen = false;
+    overlayZeigen('lobby');
+    $('lobbyListe').replaceChildren($k('div', 'leer-text', text));
+    $('lobbyStatus').textContent = 'Geh zurück zur Olympiade.';
+    $('bereitKnopf').hidden = true;
+  }
   function nachricht(m){
     switch (m.t){
+      case 'olympDu':
+        konto = { id:m.id, name:m.name, olymp:true };
+        fahrerAnzeigen();
+        if (!lobbyOffen) rennenOeffnen();
+        break;
+      case 'olympVorbei':
+        olympiaFehler('Dieses Olympia-Rennen ist schon vorbei.');
+        break;
       case 'online':
         statusSetzen(true, m.anzahl + ' online');
         $('rennenOeffnen').textContent = m.inLobby ? `Online-Rennen (${m.inLobby})` : 'Online-Rennen';
         break;
-      case 'lobby': lobbyDaten = m; lobbyZeichnen(); break;
+      case 'lobby': lobbyDaten = m; if (olympia && m.olymp) olympia.info = m.olymp; lobbyZeichnen(); break;
       case 'abbruch': if (rs.phase === 'countdown') rennenAbbrechen(m.grund); break;
       case 'countdown': if (lobbyOffen) countdownStarten(m); break;
       case 'stand':
@@ -2440,13 +2478,25 @@ const online = (() => {
     const ich = konto && d.mitglieder.find(x => x.id === konto.id);
     knopf.disabled = d.phase !== 'warten' || !ich;
     knopf.textContent = ich && ich.bereit ? 'Doch nicht bereit' : 'Bereit';
+    if (d.olymp) return olympLobby(d, ich);
     st.textContent = d.phase === 'rennen' ? `Gerade läuft ein Rennen (noch ${zeitText(d.restMs)}). Du bist beim nächsten dabei.`
       : d.phase === 'countdown' ? 'Gleich geht es los!'
       : d.mitglieder.length < 2 ? 'Warte auf mindestens einen weiteren Fahrer. Schick den Link an Freunde!'
       : 'Sobald alle bereit sind, startet das Rennen.';
   }
+  // Lobby eines Olympia-Laufs: feste Stufe, wer fehlt noch, zurück zur Olympiade
+  function olympLobby(d, ich){
+    const o = d.olymp;
+    $('lobbyTitel').textContent = `🏅 ${o.titel} · Disziplin ${o.nr}/${o.von}`;
+    $('lobbyVerlassen').textContent = 'Zurück zur Olympiade';
+    $('lobbyStufe').querySelectorAll('button').forEach(b => { b.disabled = true; });
+    const fehlen = o.erwartet.filter(e => !e.da).map(e => e.n);
+    $('lobbyStatus').textContent = d.phase !== 'warten' ? 'Gleich geht es los!'
+      : !fehlen.length ? 'Alle da – gleich geht es los!'
+      : `Warte auf ${fehlen.join(', ')}. Wenn alle Anwesenden „Bereit“ drücken, geht es auch ohne sie los.`;
+  }
   $('rennenOeffnen').addEventListener('click', rennenOeffnen);
-  $('lobbyVerlassen').addEventListener('click', lobbyVerlassen);
+  $('lobbyVerlassen').addEventListener('click', () => { if (olympia) zurOlympiade(); else lobbyVerlassen(); });
   $('bereitKnopf').addEventListener('click', () => {
     const ich = lobbyDaten && konto && lobbyDaten.mitglieder.find(x => x.id === konto.id);
     senden({ t:'bereit', bereit:!(ich && ich.bereit) });
@@ -2527,11 +2577,16 @@ const online = (() => {
     $('ergebnisTitel').textContent = ich && ich.platz === 1 ? 'Sieg!' : 'Zieleinlauf';
     $('ergebnisText').textContent = ich ? (ich.platz === 1 ? `Du hast gegen ${rl.length - 1} ${rl.length === 2 ? 'Gegner' : 'Gegner'} gewonnen.` : `Du bist auf Platz ${ich.platz} von ${rl.length}.`) : '';
     zurueckZu = 'ende';
+    if (olympia){
+      $('ergebnisText').textContent += ' Dein Platz ist bei der Olympiade eingetragen.';
+      $('ergebnisLobby').textContent = 'Zurück zur Olympiade';
+      $('ergebnisMenue').hidden = true;
+    }
     overlayZeigen('rennErgebnis');
     setTimeout(() => $('ergebnisLobby').focus(), 60);
   }
   function ergebnisZuLobby(){ stufeZurueck(); vomEndeWeg(); rennenOeffnen(); }
-  $('ergebnisLobby').addEventListener('click', ergebnisZuLobby);
+  $('ergebnisLobby').addEventListener('click', () => { if (olympia) zurOlympiade(); else ergebnisZuLobby(); });
   $('ergebnisMenue').addEventListener('click', () => { stufeZurueck(); lobbyOffen = false; senden({ t:'verlassen' }); vomEndeWeg(); overlaysZu(); });
 
   function fahrtBeendet(f){
@@ -2624,7 +2679,8 @@ const online = (() => {
       erreichbar = true;
       document.documentElement.classList.add('online');
       statusSetzen(false, 'verbinde …');
-      if (konto) kontoPruefen();
+      if (olympia){ $('nameAendern').hidden = true; verbinden(); }
+      else if (konto) kontoPruefen();
       else {
         statusSetzen(false, 'ohne Namen');
         if (!speicher.lies('bs_name_gefragt', false)){ speicher.schreib('bs_name_gefragt', true); setTimeout(() => { if (zustand === 'menue' && !overlayOffen()) nameDialog(); }, 700); }
