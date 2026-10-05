@@ -1855,7 +1855,8 @@ function update(dt){
       gas = ziel > kmh + 3;
       eingabe.hebelBremst = ziel < kmh - 6;
     }
-    if (nitroZeit > 0){ ziel = Math.max(ziel, kmh) + 90; gas = true; nitroZeit -= dt; }
+    // Nitro: fester Aufschlag auf das Gas-Ziel statt auf das aktuelle Tempo, sonst steigt es unbegrenzt
+    if (nitroZeit > 0){ ziel = Math.max(ziel, Math.min(S.basisMax + S.gasPlus, basis + S.gasPlus) + 90); gas = true; nitroZeit -= dt; }
     const diff = ziel - kmh;
     kmh += Math.max(-75*dt, Math.min(diff, (nitroZeit > 0 ? 110 : gas ? 32 : 15)*dt));
   } else if (zustand === 'menue' || zustand === 'garage'){
@@ -2004,7 +2005,7 @@ function update(dt){
           knappZaehler++;
           combo = Math.min(8, combo + (comboZeit > 0 ? 1 : 0)); comboZeit = 5;
           const bonus = Math.round((60 + kmh*0.6)*combo*S.faktor*(AUTOS[stand.auto] || AUTOS.kestrel).punkte*(nitroZeit > 0 ? 2 : 1));
-          if (stand.upgrades.nitro) nitro = Math.min(1, nitro + 0.22);
+          if (stand.upgrades.nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.22);
           punkte += bonus;
           knappZeigen((combo > 1 ? 'Knapp! ×' + combo : 'Knapp!') + '  +' + bonus);
           klang.knapp(); wackeln = Math.max(wackeln, 0.18);
@@ -2051,7 +2052,7 @@ function update(dt){
         }
         if (Math.abs(spielerX - g.position.x) < spielerB/2 + 0.5 && Math.abs(g.position.z) < spielerL/2 + 0.5){
           laufMuenzen++; weg = true; klang.muenze();
-          if (stand.upgrades.nitro) nitro = Math.min(1, nitro + 0.03);
+          if (stand.upgrades.nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.03);
         }
       }
       if (!weg) for (const a of verkehr){
