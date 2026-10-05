@@ -19,9 +19,9 @@ const LISTE_LAENGE = 25;
 
 /* ---------- Plausibilität ----------
    Obergrenzen aus den Spielregeln in index.html (STUFEN, AUTOS, Nitro):
-   Höchsttempo = basisMax + gasPlus + 90 (Nitro), Punktfaktor × 1,15 (Vesper) × 2 (Nitro),
+   Höchsttempo = basisMax + gasPlus + 110 (Nitro Stufe 5), Punktfaktor × 1,15 (Vesper) × 2 (Nitro),
    Combo höchstens ×8. Ein Ergebnis darüber ist manipuliert oder stammt aus dem alten Nitro-Glitch. */
-const REGELN = { leicht:{ vmax:350, faktor:0.7 }, normal:{ vmax:412, faktor:1 }, schwer:{ vmax:460, faktor:1.5 } };
+const REGELN = { leicht:{ vmax:370, faktor:0.7 }, normal:{ vmax:432, faktor:1 }, schwer:{ vmax:480, faktor:1.5 } };
 const KNAPP_PRO_KM = 40;
 function maxStreckeKm(stufe, sek){ return sek*REGELN[stufe].vmax/3600*1.05 + 0.05; }
 function maxPunkte(stufe, km, knapp){

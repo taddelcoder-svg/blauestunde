@@ -486,10 +486,12 @@ const AUTOS = {
   brutus:{ name:'Brutus V8', kurz:'B', typ:'muscle', preis:1500, info:'Ein Airbag extra pro Fahrt, lenkt etwas träger.', lenk:0.9, schutz:1, punkte:1, werte:[2,5,3] },
   vesper:{ name:'Vesper Hyper', kurz:'V', typ:'hyper', preis:3500, info:'Messerscharfe Lenkung und 15 % mehr Punkte.', lenk:1.25, schutz:0, punkte:1.15, werte:[5,2,5] }
 };
+// Nitro-Schub je Stufe: mehr Tuning = schneller = mehr Punkte, aber mit fester Obergrenze (Stufe 5: +110 km/h)
+const nitroSchub = l => 60 + l*10;
 const UPGRADES = {
   lenkung:{ name:'Lenkung', info:'Das Auto reagiert schneller.', preise:[150, 350, 700, 1200, 2000], effekt:l => l ? '+' + l*8 + ' % Lenkung' : 'Serie' },
   magnet:{ name:'Münzmagnet', info:'Zieht Münzen aus den Nachbarspuren an.', preise:[200, 450, 900, 1500, 2400], effekt:l => l ? (1.4 + l*0.9).toFixed(1).replace('.', ',') + ' m Reichweite' : 'nicht eingebaut' },
-  nitro:{ name:'Nitro', info:'Füllt sich durch knappe Manöver und Münzen. Zünden gibt Schub und doppelte Punkte.', preise:[300, 600, 1000, 1600, 2500], effekt:l => l ? (2.5 + l*0.7).toFixed(1).replace('.', ',') + ' s Schub' : 'nicht eingebaut' },
+  nitro:{ name:'Nitro', info:'Füllt sich durch knappe Manöver und Münzen. Zünden gibt Schub und doppelte Punkte.', preise:[300, 600, 1000, 1600, 2500], effekt:l => l ? '+' + nitroSchub(l) + ' km/h für ' + (2.5 + l*0.7).toFixed(1).replace('.', ',') + ' s' : 'nicht eingebaut' },
   airbag:{ name:'Airbag', info:'Rettet dich pro Fahrt vor einem Zusammenstoß.', preise:[600, 1500, 3000], effekt:l => l ? l + '× pro Fahrt' : 'nicht eingebaut' },
   muenzwert:{ name:'Münzwert', info:'Mehr Münzen am Ende jeder Fahrt.', preise:[250, 600, 1100, 1800, 2800], effekt:l => l ? '+' + l*20 + ' % Münzen' : 'Serie' }
 };
@@ -1855,8 +1857,8 @@ function update(dt){
       gas = ziel > kmh + 3;
       eingabe.hebelBremst = ziel < kmh - 6;
     }
-    // Nitro: fester Aufschlag auf das Gas-Ziel statt auf das aktuelle Tempo, sonst steigt es unbegrenzt
-    if (nitroZeit > 0){ ziel = Math.max(ziel, Math.min(S.basisMax + S.gasPlus, basis + S.gasPlus) + 90); gas = true; nitroZeit -= dt; }
+    // Nitro: Aufschlag je Tuning-Stufe auf das Gas-Ziel statt auf das aktuelle Tempo, sonst steigt es unbegrenzt
+    if (nitroZeit > 0){ ziel = Math.max(ziel, Math.min(S.basisMax + S.gasPlus, basis + S.gasPlus) + nitroSchub(stand.upgrades.nitro)); gas = true; nitroZeit -= dt; }
     const diff = ziel - kmh;
     kmh += Math.max(-75*dt, Math.min(diff, (nitroZeit > 0 ? 110 : gas ? 32 : 15)*dt));
   } else if (zustand === 'menue' || zustand === 'garage'){
