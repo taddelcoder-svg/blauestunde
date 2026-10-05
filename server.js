@@ -17,6 +17,20 @@ const RENNEN_DAUER = 180_000;   // ms
 const COUNTDOWN = 4_000;         // ms
 const LISTE_LAENGE = 25;
 
+/* ---------- Plausibilität ----------
+   Obergrenzen aus den Spielregeln in index.html (STUFEN, AUTOS, Nitro):
+   Höchsttempo = basisMax + gasPlus + 110 (Nitro Stufe 5), Punktfaktor × 1,15 (Vesper) × 2 (Nitro),
+   Combo höchstens ×8. Ein Ergebnis darüber ist manipuliert oder stammt aus dem alten Nitro-Glitch. */
+const REGELN = { leicht:{ vmax:370, faktor:0.7 }, normal:{ vmax:432, faktor:1 }, schwer:{ vmax:480, faktor:1.5 } };
+const KNAPP_PRO_KM = 40;
+function maxStreckeKm(stufe, sek){ return sek*REGELN[stufe].vmax/3600*1.05 + 0.05; }
+function maxPunkte(stufe, km, knapp){
+  const r = REGELN[stufe], mult = r.faktor*1.15*2;
+  const fahrt = km*1000*0.432*2.05*mult;                       // Grundpunkte pro Meter bei voller Combo
+  const proKnapp = (60 + 0.6*r.vmax)*8*mult;
+  return 2000 + 1.1*(fahrt + Math.min(knapp, km*KNAPP_PRO_KM + 20)*proKnapp);
+}
+
 /* ---------- Speicher ----------
    Mit SUPABASE_URL und SUPABASE_SERVICE_KEY liegen Namen und Bestenliste als
    eine Zeile in der Supabase-Tabelle „blauestunde_speicher“ (siehe
@@ -85,7 +99,7 @@ const nameSchluessel = n => n.toLocaleLowerCase('de-DE');
 const tokenIndex = new Map(), nameIndex = new Map();
 function indizesAufbauen(){
   tokenIndex.clear(); nameIndex.clear();
-  for (const [id, s] of Object.entries(db.spieler)){ tokenIndex.set(s.tokenHash, id); nameIndex.set(nameSchluessel(s.name), id); }
+  for (const [id, s] of Object.entries(db.spieler)){ if (s.olymp) continue; tokenIndex.set(s.tokenHash, id); nameIndex.set(nameSchluessel(s.name), id); }
 }
 
 function nameFehler(name){
@@ -106,7 +120,26 @@ function bestenliste(stufe){
   return Object.entries(db.bestwerte[stufe] || {})
     .filter(([id]) => db.spieler[id])
     .sort((a, b) => b[1].punkte - a[1].punkte)
-    .map(([id, w], i) => ({ platz:i + 1, id, name:db.spieler[id].name, punkte:w.punkte, strecke:w.strecke, datum:w.datum }));
+    .map(([id, w], i) => ({ platz:i + 1, id, name:db.spieler[id].name, olymp:!!db.spieler[id].olymp, punkte:w.punkte, strecke:w.strecke, datum:w.datum }));
+}
+// Olympia-Fahrer haben kein Fahrerkonto: Sie bekommen einen eigenen Eintrag (ohne Token, Name aus dem Ticket),
+// der über alle Läufe derselben Olympiade gleich bleibt.
+function bestwertEintragen(stufe, id, punkte, strecke){
+  const alt = db.bestwerte[stufe][id];
+  if (alt && punkte <= alt.punkte) return false;
+  db.bestwerte[stufe][id] = { punkte, strecke:Math.round(strecke*10)/10, datum:Date.now() };
+  speichern();
+  return true;
+}
+function olympBestwerte(lb, rangliste){
+  const t = lb.olymp.t;
+  rangliste.forEach(e => {
+    if (e.punkte <= 0) return;
+    const id = 'o-' + hash(t.u + ':' + e.id.split(':').pop()).slice(0, 16);
+    db.spieler[id] = { name:e.name, olymp:true, erstellt:(db.spieler[id] && db.spieler[id].erstellt) || Date.now() };
+    bestwertEintragen(lb.stufe, id, e.punkte, e.strecke/1000);
+  });
+  speichern();
 }
 
 /* ---------- Anfragen-Begrenzung ---------- */
@@ -208,12 +241,11 @@ const server = http.createServer(async (req, res) => {
       const e = await koerperLesen(req);
       const stufe = STUFEN.includes(e.stufe) ? e.stufe : null;
       const punkte = Math.floor(Number(e.punkte)), strecke = Number(e.strecke), dauer = Number(e.dauer);
+      const knapp = Number.isInteger(e.knapp) && e.knapp >= 0 ? e.knapp : 0;
       if (!stufe || !Number.isFinite(punkte) || punkte < 0 || !Number.isFinite(dauer) || dauer <= 0 || dauer > 6*3600
-        || !Number.isFinite(strecke) || strecke < 0 || strecke > dauer*0.2 /* max. ~720 km/h */
-        || punkte > 2000 + dauer*9000) return json(res, 400, { fehler:'Ergebnis nicht plausibel.' });
-      const alt = db.bestwerte[stufe][s.id];
-      const neu = !alt || punkte > alt.punkte;
-      if (neu){ db.bestwerte[stufe][s.id] = { punkte, strecke:Math.round(strecke*10)/10, datum:Date.now() }; speichern(); }
+        || !Number.isFinite(strecke) || strecke < 0 || strecke > maxStreckeKm(stufe, dauer)
+        || punkte > maxPunkte(stufe, strecke, knapp)) return json(res, 400, { fehler:'Ergebnis nicht plausibel.' });
+      const neu = bestwertEintragen(stufe, s.id, punkte, strecke);
       const alle = bestenliste(stufe);
       const ich = alle.find(x => x.id === s.id);
       return json(res, 200, { neuerBestwert:neu, platz:ich ? ich.platz : null, gesamt:alle.length, bester:ich ? ich.punkte : punkte });
@@ -304,7 +336,7 @@ function rennenBeenden(lb){
   const empf = new Set([...lb.teilnehmer.keys()]);
   lb.phase = 'warten';
   lb.mitglieder.forEach(m => m.bereit = false);
-  if (lb.olymp) olympMelden(lb, rangliste);
+  if (lb.olymp){ olympMelden(lb, rangliste); olympBestwerte(lb, rangliste); }
   const s = JSON.stringify({ t:'ergebnis', rangliste });
   verbindungen.forEach(ws => { if (ws.spieler && ws.lobby === lb && empf.has(ws.spieler.id) && ws.readyState === 1) ws.send(s); });
   lb.teilnehmer.clear();
@@ -366,7 +398,7 @@ wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://x');
   const olympTicket = url.searchParams.get('olymp');
   if (olympTicket){
-    // Olympia-Fahrer: Name und Lobby kommen aus dem Ticket, gewertet wird nur für die Olympiade
+    // Olympia-Fahrer: Name und Lobby kommen aus dem Ticket, gewertet wird für die Olympiade und die Bestenliste
     const t = olymp.ticketPruefen(olympTicket);
     if (!t){ ws.close(4003, 'ticket'); return; }
     const id = olympSpielerId(t, t.s), name = t.n;
@@ -414,7 +446,10 @@ wss.on('connection', (ws, req) => {
         const t = lb.teilnehmer.get(id);
         if (!t || t.aus || lb.phase !== 'rennen') break;
         const num = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
-        t.d = num(m.d, 0, 1e6); t.x = num(m.x, -6, 6); t.kmh = num(m.kmh, 0, 800); t.p = num(m.p, 0, 1e9);
+        // Strecke und Punkte nur so weit, wie es seit dem Start überhaupt möglich ist
+        const kmMax = maxStreckeKm(lb.stufe, (Date.now() - lb.startZeit)/1000 + 5);
+        t.d = num(m.d, 0, kmMax*1000); t.x = num(m.x, -6, 6); t.kmh = num(m.kmh, 0, REGELN[lb.stufe].vmax + 10);
+        t.p = num(m.p, 0, maxPunkte(lb.stufe, t.d/1000, Infinity));
         if (typeof m.auto === 'string' && m.auto.length < 20) t.auto = m.auto;
         if (Number.isInteger(m.lack)) t.lack = m.lack & 0xffffff;
         if (m.aus){ t.aus = true; rennenPruefen(lb); }

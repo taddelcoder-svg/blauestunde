@@ -364,7 +364,7 @@
 <div class="ebene aus" id="namensDialog">
   <div class="schild" role="dialog" aria-labelledby="nameTitel">
     <h1 id="nameTitel">Dein Name</h1>
-    <div class="unter">So erscheinst du in der Bestenliste und bei Online-Rennen.</div>
+    <div class="unter" id="nameUnter">So erscheinst du in der Bestenliste und bei Online-Rennen.</div>
     <input class="eingabefeld" id="nameFeld" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="z. B. Nachtfalke">
     <div class="hinweis" id="nameHinweis">3–16 Zeichen: Buchstaben, Ziffern, Leerzeichen, _ - .</div>
     <button class="knopf" id="nameSpeichern">Speichern</button>
@@ -486,10 +486,12 @@ const AUTOS = {
   brutus:{ name:'Brutus V8', kurz:'B', typ:'muscle', preis:1500, info:'Ein Airbag extra pro Fahrt, lenkt etwas träger.', lenk:0.9, schutz:1, punkte:1, werte:[2,5,3] },
   vesper:{ name:'Vesper Hyper', kurz:'V', typ:'hyper', preis:3500, info:'Messerscharfe Lenkung und 15 % mehr Punkte.', lenk:1.25, schutz:0, punkte:1.15, werte:[5,2,5] }
 };
+// Nitro-Schub je Stufe: mehr Tuning = schneller = mehr Punkte, aber mit fester Obergrenze (Stufe 5: +110 km/h)
+const nitroSchub = l => 60 + l*10;
 const UPGRADES = {
   lenkung:{ name:'Lenkung', info:'Das Auto reagiert schneller.', preise:[150, 350, 700, 1200, 2000], effekt:l => l ? '+' + l*8 + ' % Lenkung' : 'Serie' },
   magnet:{ name:'Münzmagnet', info:'Zieht Münzen aus den Nachbarspuren an.', preise:[200, 450, 900, 1500, 2400], effekt:l => l ? (1.4 + l*0.9).toFixed(1).replace('.', ',') + ' m Reichweite' : 'nicht eingebaut' },
-  nitro:{ name:'Nitro', info:'Füllt sich durch knappe Manöver und Münzen. Zünden gibt Schub und doppelte Punkte.', preise:[300, 600, 1000, 1600, 2500], effekt:l => l ? (2.5 + l*0.7).toFixed(1).replace('.', ',') + ' s Schub' : 'nicht eingebaut' },
+  nitro:{ name:'Nitro', info:'Füllt sich durch knappe Manöver und Münzen. Zünden gibt Schub und doppelte Punkte.', preise:[300, 600, 1000, 1600, 2500], effekt:l => l ? '+' + nitroSchub(l) + ' km/h für ' + (2.5 + l*0.7).toFixed(1).replace('.', ',') + ' s' : 'nicht eingebaut' },
   airbag:{ name:'Airbag', info:'Rettet dich pro Fahrt vor einem Zusammenstoß.', preise:[600, 1500, 3000], effekt:l => l ? l + '× pro Fahrt' : 'nicht eingebaut' },
   muenzwert:{ name:'Münzwert', info:'Mehr Münzen am Ende jeder Fahrt.', preise:[250, 600, 1100, 1800, 2800], effekt:l => l ? '+' + l*20 + ' % Münzen' : 'Serie' }
 };
@@ -1855,7 +1857,8 @@ function update(dt){
       gas = ziel > kmh + 3;
       eingabe.hebelBremst = ziel < kmh - 6;
     }
-    if (nitroZeit > 0){ ziel = Math.max(ziel, kmh) + 90; gas = true; nitroZeit -= dt; }
+    // Nitro: Aufschlag je Tuning-Stufe auf das Gas-Ziel statt auf das aktuelle Tempo, sonst steigt es unbegrenzt
+    if (nitroZeit > 0){ ziel = Math.max(ziel, Math.min(S.basisMax + S.gasPlus, basis + S.gasPlus) + nitroSchub(stand.upgrades.nitro)); gas = true; nitroZeit -= dt; }
     const diff = ziel - kmh;
     kmh += Math.max(-75*dt, Math.min(diff, (nitroZeit > 0 ? 110 : gas ? 32 : 15)*dt));
   } else if (zustand === 'menue' || zustand === 'garage'){
@@ -2004,7 +2007,7 @@ function update(dt){
           knappZaehler++;
           combo = Math.min(8, combo + (comboZeit > 0 ? 1 : 0)); comboZeit = 5;
           const bonus = Math.round((60 + kmh*0.6)*combo*S.faktor*(AUTOS[stand.auto] || AUTOS.kestrel).punkte*(nitroZeit > 0 ? 2 : 1));
-          if (stand.upgrades.nitro) nitro = Math.min(1, nitro + 0.22);
+          if (stand.upgrades.nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.22);
           punkte += bonus;
           knappZeigen((combo > 1 ? 'Knapp! ×' + combo : 'Knapp!') + '  +' + bonus);
           klang.knapp(); wackeln = Math.max(wackeln, 0.18);
@@ -2051,7 +2054,7 @@ function update(dt){
         }
         if (Math.abs(spielerX - g.position.x) < spielerB/2 + 0.5 && Math.abs(g.position.z) < spielerL/2 + 0.5){
           laufMuenzen++; weg = true; klang.muenze();
-          if (stand.upgrades.nitro) nitro = Math.min(1, nitro + 0.03);
+          if (stand.upgrades.nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.03);
         }
       }
       if (!weg) for (const a of verkehr){
@@ -2239,7 +2242,7 @@ const online = (() => {
   const MOEGLICH = /^https?:$/.test(location.protocol);
   const OVERLAYS = ['namensDialog', 'bestenliste', 'lobby', 'rennErgebnis'];
   // Olympiade: Mit ?olymp=… im Link fährt man ohne Fahrernamen in der Lobby seines Olympia-Laufs.
-  // Das Ticket prüft der Server; gewertet wird dann nur für die Olympiade, nicht für die Bestenliste.
+  // Das Ticket prüft der Server; das Rennergebnis zählt für die Olympiade und kommt auch in die Bestenliste.
   const olympia = (() => {
     let ticket = new URLSearchParams(location.search).get('olymp');
     try {
@@ -2259,7 +2262,7 @@ const online = (() => {
   }
   let konto = olympia ? null : speicher.lies('bs_konto', null);   // { id, name, token } – in der Olympiade { id, name, olymp:true }
   let erreichbar = false, ws = null, wsVersuch = 0, wsTimer = null;
-  let zurueckZu = 'menue', nachName = null, letzteFahrt = null, listeStufe = stufe;
+  let zurueckZu = 'menue', nachName = null, letzteFahrt = null, listeStufe = stufe, nameSpaeter = false;
   let lobbyDaten = null, lobbyOffen = false;
   const rs = { phase:'aus', alteStufe:null, restMs:0, fahrer:[], ergebnis:null, sendenT:0, ausGemeldet:false };
   const geister = new Map();
@@ -2304,8 +2307,10 @@ const online = (() => {
   }
 
   /* --- Name --- */
-  function nameDialog(danach){
+  function nameDialog(danach, fahrt){
     nachName = danach || null;
+    $('nameUnter').textContent = fahrt ? `Wähle einen Namen, dann kommen deine ${fmt(fahrt.punkte)} Punkte in die Bestenliste.`
+      : 'So erscheinst du in der Bestenliste und bei Online-Rennen.';
     zurueckZu = zustand === 'ende' ? 'ende' : 'menue';
     const f = $('nameFeld'); f.value = konto ? konto.name : '';
     const h = $('nameHinweis'); h.classList.remove('fehler'); h.textContent = '3–16 Zeichen: Buchstaben, Ziffern, Leerzeichen, _ - .';
@@ -2313,7 +2318,7 @@ const online = (() => {
     overlayZeigen('namensDialog');
     setTimeout(() => f.focus(), 60);
   }
-  function nameAbbrechen(){ nachName = null; overlaysZu(); }
+  function nameAbbrechen(){ nachName = null; if (!konto) nameSpaeter = true; overlaysZu(); }
   async function nameSpeichern(){
     const name = $('nameFeld').value.trim(), h = $('nameHinweis'), knopf = $('nameSpeichern');
     knopf.disabled = true; h.classList.remove('fehler'); h.textContent = 'Einen Moment …';
@@ -2345,7 +2350,7 @@ const online = (() => {
       if (!d.eintraege.length) box.append($k('div', 'leer-text', 'Noch keine Einträge – fahr die erste Bestzeit!'));
       d.eintraege.forEach(e => {
         const z = $k('div', 'rang' + (konto && e.id === konto.id ? ' ich' : ''));
-        const nm = $k('div', 'nm', e.name); nm.append($k('small', '', e.strecke.toLocaleString('de-DE', { maximumFractionDigits:1 }) + ' km'));
+        const nm = $k('div', 'nm', e.name); nm.append($k('small', '', e.strecke.toLocaleString('de-DE', { maximumFractionDigits:1 }) + ' km' + (e.olymp ? ' · Olympia' : '')));
         z.append($k('span', 'nr', e.platz + '.'), nm, $k('b', '', fmt(e.punkte)));
         box.append(z);
       });
@@ -2367,8 +2372,14 @@ const online = (() => {
   async function ergebnisSenden(f){
     const zeile = $('endeWeltZeile'), wert = $('endeWelt');
     zeile.hidden = false;
-    if (konto && konto.olymp){ wert.textContent = 'Olympia-Fahrt – zählt nur für die Olympiade'; return; }
-    if (!konto){ wert.textContent = 'Name wählen, um gewertet zu werden'; return; }
+    if (konto && konto.olymp){ wert.textContent = 'Olympia-Fahrt – wird nach dem Rennen eingetragen'; return; }
+    if (!konto){
+      wert.textContent = 'Name wählen, um gewertet zu werden';
+      // Direkt nach der Fahrt nach dem Namen fragen; nameSpeichern wertet die Fahrt dann nachträglich.
+      // Nach „Später“ nicht bei jeder Fahrt erneut.
+      if (!olympia && !nameSpaeter && f.punkte > 0) setTimeout(() => { if (zustand === 'ende' && letzteFahrt === f && !konto && !overlayOffen()) nameDialog(null, f); }, 900);
+      return;
+    }
     wert.textContent = '…';
     try {
       const r = await api('/api/ergebnis', 'POST', f);
