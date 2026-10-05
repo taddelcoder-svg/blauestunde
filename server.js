@@ -17,6 +17,20 @@ const RENNEN_DAUER = 180_000;   // ms
 const COUNTDOWN = 4_000;         // ms
 const LISTE_LAENGE = 25;
 
+/* ---------- Plausibilität ----------
+   Obergrenzen aus den Spielregeln in index.html (STUFEN, AUTOS, Nitro):
+   Höchsttempo = basisMax + gasPlus + 90 (Nitro), Punktfaktor × 1,15 (Vesper) × 2 (Nitro),
+   Combo höchstens ×8. Ein Ergebnis darüber ist manipuliert oder stammt aus dem alten Nitro-Glitch. */
+const REGELN = { leicht:{ vmax:350, faktor:0.7 }, normal:{ vmax:412, faktor:1 }, schwer:{ vmax:460, faktor:1.5 } };
+const KNAPP_PRO_KM = 40;
+function maxStreckeKm(stufe, sek){ return sek*REGELN[stufe].vmax/3600*1.05 + 0.05; }
+function maxPunkte(stufe, km, knapp){
+  const r = REGELN[stufe], mult = r.faktor*1.15*2;
+  const fahrt = km*1000*0.432*2.05*mult;                       // Grundpunkte pro Meter bei voller Combo
+  const proKnapp = (60 + 0.6*r.vmax)*8*mult;
+  return 2000 + 1.1*(fahrt + Math.min(knapp, km*KNAPP_PRO_KM + 20)*proKnapp);
+}
+
 /* ---------- Speicher ----------
    Mit SUPABASE_URL und SUPABASE_SERVICE_KEY liegen Namen und Bestenliste als
    eine Zeile in der Supabase-Tabelle „blauestunde_speicher“ (siehe
@@ -208,9 +222,10 @@ const server = http.createServer(async (req, res) => {
       const e = await koerperLesen(req);
       const stufe = STUFEN.includes(e.stufe) ? e.stufe : null;
       const punkte = Math.floor(Number(e.punkte)), strecke = Number(e.strecke), dauer = Number(e.dauer);
+      const knapp = Number.isInteger(e.knapp) && e.knapp >= 0 ? e.knapp : 0;
       if (!stufe || !Number.isFinite(punkte) || punkte < 0 || !Number.isFinite(dauer) || dauer <= 0 || dauer > 6*3600
-        || !Number.isFinite(strecke) || strecke < 0 || strecke > dauer*0.2 /* max. ~720 km/h */
-        || punkte > 2000 + dauer*9000) return json(res, 400, { fehler:'Ergebnis nicht plausibel.' });
+        || !Number.isFinite(strecke) || strecke < 0 || strecke > maxStreckeKm(stufe, dauer)
+        || punkte > maxPunkte(stufe, strecke, knapp)) return json(res, 400, { fehler:'Ergebnis nicht plausibel.' });
       const alt = db.bestwerte[stufe][s.id];
       const neu = !alt || punkte > alt.punkte;
       if (neu){ db.bestwerte[stufe][s.id] = { punkte, strecke:Math.round(strecke*10)/10, datum:Date.now() }; speichern(); }
@@ -414,7 +429,10 @@ wss.on('connection', (ws, req) => {
         const t = lb.teilnehmer.get(id);
         if (!t || t.aus || lb.phase !== 'rennen') break;
         const num = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
-        t.d = num(m.d, 0, 1e6); t.x = num(m.x, -6, 6); t.kmh = num(m.kmh, 0, 800); t.p = num(m.p, 0, 1e9);
+        // Strecke und Punkte nur so weit, wie es seit dem Start überhaupt möglich ist
+        const kmMax = maxStreckeKm(lb.stufe, (Date.now() - lb.startZeit)/1000 + 5);
+        t.d = num(m.d, 0, kmMax*1000); t.x = num(m.x, -6, 6); t.kmh = num(m.kmh, 0, REGELN[lb.stufe].vmax + 10);
+        t.p = num(m.p, 0, maxPunkte(lb.stufe, t.d/1000, Infinity));
         if (typeof m.auto === 'string' && m.auto.length < 20) t.auto = m.auto;
         if (Number.isInteger(m.lack)) t.lack = m.lack & 0xffffff;
         if (m.aus){ t.aus = true; rennenPruefen(lb); }
