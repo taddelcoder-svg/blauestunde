@@ -364,7 +364,7 @@
 <div class="ebene aus" id="namensDialog">
   <div class="schild" role="dialog" aria-labelledby="nameTitel">
     <h1 id="nameTitel">Dein Name</h1>
-    <div class="unter">So erscheinst du in der Bestenliste und bei Online-Rennen.</div>
+    <div class="unter" id="nameUnter">So erscheinst du in der Bestenliste und bei Online-Rennen.</div>
     <input class="eingabefeld" id="nameFeld" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="z. B. Nachtfalke">
     <div class="hinweis" id="nameHinweis">3–16 Zeichen: Buchstaben, Ziffern, Leerzeichen, _ - .</div>
     <button class="knopf" id="nameSpeichern">Speichern</button>
@@ -2242,7 +2242,7 @@ const online = (() => {
   const MOEGLICH = /^https?:$/.test(location.protocol);
   const OVERLAYS = ['namensDialog', 'bestenliste', 'lobby', 'rennErgebnis'];
   // Olympiade: Mit ?olymp=… im Link fährt man ohne Fahrernamen in der Lobby seines Olympia-Laufs.
-  // Das Ticket prüft der Server; gewertet wird dann nur für die Olympiade, nicht für die Bestenliste.
+  // Das Ticket prüft der Server; das Rennergebnis zählt für die Olympiade und kommt auch in die Bestenliste.
   const olympia = (() => {
     let ticket = new URLSearchParams(location.search).get('olymp');
     try {
@@ -2262,7 +2262,7 @@ const online = (() => {
   }
   let konto = olympia ? null : speicher.lies('bs_konto', null);   // { id, name, token } – in der Olympiade { id, name, olymp:true }
   let erreichbar = false, ws = null, wsVersuch = 0, wsTimer = null;
-  let zurueckZu = 'menue', nachName = null, letzteFahrt = null, listeStufe = stufe;
+  let zurueckZu = 'menue', nachName = null, letzteFahrt = null, listeStufe = stufe, nameSpaeter = false;
   let lobbyDaten = null, lobbyOffen = false;
   const rs = { phase:'aus', alteStufe:null, restMs:0, fahrer:[], ergebnis:null, sendenT:0, ausGemeldet:false };
   const geister = new Map();
@@ -2307,8 +2307,10 @@ const online = (() => {
   }
 
   /* --- Name --- */
-  function nameDialog(danach){
+  function nameDialog(danach, fahrt){
     nachName = danach || null;
+    $('nameUnter').textContent = fahrt ? `Wähle einen Namen, dann kommen deine ${fmt(fahrt.punkte)} Punkte in die Bestenliste.`
+      : 'So erscheinst du in der Bestenliste und bei Online-Rennen.';
     zurueckZu = zustand === 'ende' ? 'ende' : 'menue';
     const f = $('nameFeld'); f.value = konto ? konto.name : '';
     const h = $('nameHinweis'); h.classList.remove('fehler'); h.textContent = '3–16 Zeichen: Buchstaben, Ziffern, Leerzeichen, _ - .';
@@ -2316,7 +2318,7 @@ const online = (() => {
     overlayZeigen('namensDialog');
     setTimeout(() => f.focus(), 60);
   }
-  function nameAbbrechen(){ nachName = null; overlaysZu(); }
+  function nameAbbrechen(){ nachName = null; if (!konto) nameSpaeter = true; overlaysZu(); }
   async function nameSpeichern(){
     const name = $('nameFeld').value.trim(), h = $('nameHinweis'), knopf = $('nameSpeichern');
     knopf.disabled = true; h.classList.remove('fehler'); h.textContent = 'Einen Moment …';
@@ -2348,7 +2350,7 @@ const online = (() => {
       if (!d.eintraege.length) box.append($k('div', 'leer-text', 'Noch keine Einträge – fahr die erste Bestzeit!'));
       d.eintraege.forEach(e => {
         const z = $k('div', 'rang' + (konto && e.id === konto.id ? ' ich' : ''));
-        const nm = $k('div', 'nm', e.name); nm.append($k('small', '', e.strecke.toLocaleString('de-DE', { maximumFractionDigits:1 }) + ' km'));
+        const nm = $k('div', 'nm', e.name); nm.append($k('small', '', e.strecke.toLocaleString('de-DE', { maximumFractionDigits:1 }) + ' km' + (e.olymp ? ' · Olympia' : '')));
         z.append($k('span', 'nr', e.platz + '.'), nm, $k('b', '', fmt(e.punkte)));
         box.append(z);
       });
@@ -2370,8 +2372,14 @@ const online = (() => {
   async function ergebnisSenden(f){
     const zeile = $('endeWeltZeile'), wert = $('endeWelt');
     zeile.hidden = false;
-    if (konto && konto.olymp){ wert.textContent = 'Olympia-Fahrt – zählt nur für die Olympiade'; return; }
-    if (!konto){ wert.textContent = 'Name wählen, um gewertet zu werden'; return; }
+    if (konto && konto.olymp){ wert.textContent = 'Olympia-Fahrt – wird nach dem Rennen eingetragen'; return; }
+    if (!konto){
+      wert.textContent = 'Name wählen, um gewertet zu werden';
+      // Direkt nach der Fahrt nach dem Namen fragen; nameSpeichern wertet die Fahrt dann nachträglich.
+      // Nach „Später“ nicht bei jeder Fahrt erneut.
+      if (!olympia && !nameSpaeter && f.punkte > 0) setTimeout(() => { if (zustand === 'ende' && letzteFahrt === f && !konto && !overlayOffen()) nameDialog(null, f); }, 900);
+      return;
+    }
     wert.textContent = '…';
     try {
       const r = await api('/api/ergebnis', 'POST', f);

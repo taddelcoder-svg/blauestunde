@@ -5,7 +5,7 @@ Endloses 3D-Nachtfahrt-Spiel im Browser (three.js). Weiche dem Verkehr aus – j
 ## Online-Funktionen
 
 - **Fahrername:** einmal wählen (ohne Passwort). Der Name wird auf dem Gerät gespeichert und ist weltweit eindeutig.
-- **Bestenliste:** getrennt nach Leicht, Normal und Schwer. Jede Fahrt mit Namen wird automatisch gewertet.
+- **Bestenliste:** getrennt nach Leicht, Normal und Schwer. Jede Fahrt mit Namen wird automatisch gewertet. Wer noch keinen Namen hat, wird nach der Fahrt gefragt, die Fahrt zählt dann nachträglich. Olympia-Rennen kommen mit dem Namen aus dem Olympia-Ticket ebenfalls in die Liste (markiert mit „Olympia“).
 - **Online-Rennen:** Alle in der Lobby drücken „Bereit“, dann startet ein 3-Minuten-Rennen auf derselben Stufe. Mitspieler erscheinen als halbtransparente Geisterautos mit Namensschild, oben rechts läuft die Live-Rangliste. Die meisten Punkte gewinnen; wer einen Unfall baut, ist raus, behält aber seine Punkte.
 
 Ohne Server (z. B. `index.html` direkt als Datei geöffnet) läuft das Spiel wie gewohnt offline, die Online-Knöpfe werden dann ausgeblendet.

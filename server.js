@@ -99,7 +99,7 @@ const nameSchluessel = n => n.toLocaleLowerCase('de-DE');
 const tokenIndex = new Map(), nameIndex = new Map();
 function indizesAufbauen(){
   tokenIndex.clear(); nameIndex.clear();
-  for (const [id, s] of Object.entries(db.spieler)){ tokenIndex.set(s.tokenHash, id); nameIndex.set(nameSchluessel(s.name), id); }
+  for (const [id, s] of Object.entries(db.spieler)){ if (s.olymp) continue; tokenIndex.set(s.tokenHash, id); nameIndex.set(nameSchluessel(s.name), id); }
 }
 
 function nameFehler(name){
@@ -120,7 +120,26 @@ function bestenliste(stufe){
   return Object.entries(db.bestwerte[stufe] || {})
     .filter(([id]) => db.spieler[id])
     .sort((a, b) => b[1].punkte - a[1].punkte)
-    .map(([id, w], i) => ({ platz:i + 1, id, name:db.spieler[id].name, punkte:w.punkte, strecke:w.strecke, datum:w.datum }));
+    .map(([id, w], i) => ({ platz:i + 1, id, name:db.spieler[id].name, olymp:!!db.spieler[id].olymp, punkte:w.punkte, strecke:w.strecke, datum:w.datum }));
+}
+// Olympia-Fahrer haben kein Fahrerkonto: Sie bekommen einen eigenen Eintrag (ohne Token, Name aus dem Ticket),
+// der über alle Läufe derselben Olympiade gleich bleibt.
+function bestwertEintragen(stufe, id, punkte, strecke){
+  const alt = db.bestwerte[stufe][id];
+  if (alt && punkte <= alt.punkte) return false;
+  db.bestwerte[stufe][id] = { punkte, strecke:Math.round(strecke*10)/10, datum:Date.now() };
+  speichern();
+  return true;
+}
+function olympBestwerte(lb, rangliste){
+  const t = lb.olymp.t;
+  rangliste.forEach(e => {
+    if (e.punkte <= 0) return;
+    const id = 'o-' + hash(t.u + ':' + e.id.split(':').pop()).slice(0, 16);
+    db.spieler[id] = { name:e.name, olymp:true, erstellt:(db.spieler[id] && db.spieler[id].erstellt) || Date.now() };
+    bestwertEintragen(lb.stufe, id, e.punkte, e.strecke/1000);
+  });
+  speichern();
 }
 
 /* ---------- Anfragen-Begrenzung ---------- */
@@ -226,9 +245,7 @@ const server = http.createServer(async (req, res) => {
       if (!stufe || !Number.isFinite(punkte) || punkte < 0 || !Number.isFinite(dauer) || dauer <= 0 || dauer > 6*3600
         || !Number.isFinite(strecke) || strecke < 0 || strecke > maxStreckeKm(stufe, dauer)
         || punkte > maxPunkte(stufe, strecke, knapp)) return json(res, 400, { fehler:'Ergebnis nicht plausibel.' });
-      const alt = db.bestwerte[stufe][s.id];
-      const neu = !alt || punkte > alt.punkte;
-      if (neu){ db.bestwerte[stufe][s.id] = { punkte, strecke:Math.round(strecke*10)/10, datum:Date.now() }; speichern(); }
+      const neu = bestwertEintragen(stufe, s.id, punkte, strecke);
       const alle = bestenliste(stufe);
       const ich = alle.find(x => x.id === s.id);
       return json(res, 200, { neuerBestwert:neu, platz:ich ? ich.platz : null, gesamt:alle.length, bester:ich ? ich.punkte : punkte });
@@ -319,7 +336,7 @@ function rennenBeenden(lb){
   const empf = new Set([...lb.teilnehmer.keys()]);
   lb.phase = 'warten';
   lb.mitglieder.forEach(m => m.bereit = false);
-  if (lb.olymp) olympMelden(lb, rangliste);
+  if (lb.olymp){ olympMelden(lb, rangliste); olympBestwerte(lb, rangliste); }
   const s = JSON.stringify({ t:'ergebnis', rangliste });
   verbindungen.forEach(ws => { if (ws.spieler && ws.lobby === lb && empf.has(ws.spieler.id) && ws.readyState === 1) ws.send(s); });
   lb.teilnehmer.clear();
@@ -381,7 +398,7 @@ wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://x');
   const olympTicket = url.searchParams.get('olymp');
   if (olympTicket){
-    // Olympia-Fahrer: Name und Lobby kommen aus dem Ticket, gewertet wird nur für die Olympiade
+    // Olympia-Fahrer: Name und Lobby kommen aus dem Ticket, gewertet wird für die Olympiade und die Bestenliste
     const t = olymp.ticketPruefen(olympTicket);
     if (!t){ ws.close(4003, 'ticket'); return; }
     const id = olympSpielerId(t, t.s), name = t.n;
