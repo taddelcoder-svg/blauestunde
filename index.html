@@ -323,6 +323,20 @@
   .meldung.an{opacity:1}
   .meldung.warnung{border-color:#f2b705;color:#ffe08a}
   .touch .meldung{top:calc(112px + env(safe-area-inset-top,0px))}
+  .jagd-hud{position:absolute;right:calc(18px + env(safe-area-inset-right,0px));top:calc(62px + env(safe-area-inset-top,0px));display:none;
+    background:rgba(10,12,28,.6);border-radius:8px;padding:6px 12px 8px;min-width:150px;font-weight:700;backdrop-filter:blur(6px);text-align:right}
+  .jagd .jagd-hud{display:block}
+  .jagd-hud span{font-size:14px;opacity:.8;margin-right:8px}
+  .jagd-hud b{font-size:22px}
+  .jagd-hud.nah b{color:#ff8a95}
+  .jagd-balken{height:7px;border-radius:4px;background:rgba(255,255,255,.18);margin-top:5px;overflow:hidden}
+  .jagd-balken div{height:100%;width:50%;background:linear-gradient(90deg,#ff3b4e,#2a7bff);border-radius:4px}
+  .blaulicht{position:absolute;inset:0;pointer-events:none;opacity:0}
+  .geist-hud{display:none;font-size:15px;font-weight:700;opacity:.85;margin-top:6px}
+  .geist-hud.an{display:block}
+  .geist-hud.vorn{color:#6ee29a}
+  .geist-hud.hinten{color:#ff9aa5}
+  .erfolg-name{font-weight:800}
 </style>
 </head>
 <body>
@@ -333,6 +347,7 @@
   <div class="punkte">
     <div class="wert"><span id="punkte">0</span><span class="combo leer" id="combo">×2</span></div>
     <div class="klein"><span id="stufeHud">Normal</span>, Rekord <span id="rekordHud">0</span></div>
+    <div class="geist-hud" id="geistHud"></div>
     <div class="hud-zeile"><span class="konto"><i class="muenze"></i><span id="muenzHud">0</span></span><span class="schutz-icons" id="schutzHud"></span></div>
     <div class="nitro" id="nitroHud"><div class="nitro-balken"><div id="nitroFuellung"></div></div><span id="nitroText">Nitro</span></div>
   </div>
@@ -340,6 +355,8 @@
   <div class="knapp" id="knapp">Knapp!</div>
   <div class="tipp" id="tipp">Weiche aus – je knapper, desto mehr Punkte</div>
   <div class="meldung" id="meldung" aria-live="polite"></div>
+  <div class="jagd-hud" id="jagdHud"><span>Polizei</span><b id="jagdAbstand">70 m</b><div class="jagd-balken"><div id="jagdFuellung"></div></div></div>
+  <div class="blaulicht" id="blaulicht"></div>
   <div class="tacho">
     <svg viewBox="0 0 170 170" aria-hidden="true">
       <path d="M 30 140 A 70 70 0 1 1 140 140" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="9" stroke-linecap="round"/>
@@ -409,12 +426,13 @@
     <button class="knopf" id="start">Losfahren</button>
     <div class="reihe">
       <button class="knopf zweit tages-knopf" id="tagesfahrt">Tagesfahrt<small id="tagesInfo">Heute für alle gleich</small></button>
-      <button class="knopf zweit tages-knopf" id="auftraegeOeffnen">Aufträge<small id="auftraegeStand">0 von 3</small></button>
-      <button class="knopf zweit" id="garageOeffnen">Garage</button>
+      <button class="knopf zweit tages-knopf" id="verfolgung">Verfolgung<small>Polizei im Nacken</small></button>
+      <button class="knopf zweit tages-knopf" id="auftraegeOeffnen">Ziele<small id="auftraegeStand">0 von 3</small></button>
     </div>
-    <div class="knopf-reihe nur-online">
-      <button class="knopf zweit" id="rennenOeffnen">Online-Rennen</button>
-      <button class="knopf zweit" id="listeOeffnen">Bestenliste</button>
+    <div class="reihe">
+      <button class="knopf zweit" id="garageOeffnen">Garage</button>
+      <button class="knopf zweit nur-online" id="rennenOeffnen">Online-Rennen</button>
+      <button class="knopf zweit nur-online" id="listeOeffnen">Bestenliste</button>
     </div>
     <a class="rechtliches" href="datenschutz" target="_blank" rel="noopener">Datenschutz</a>
   </div>
@@ -430,7 +448,7 @@
     <div class="zeile"><span>Knappe Manöver</span><b id="endeKnapp">0</b></div>
     <div class="zeile"><span id="endeRekordText">Rekord auf dieser Stufe</span><b id="endeRekord">0</b></div>
     <div class="zeile"><span>Münzen <small id="endeMuenzDetail" style="font-weight:600;opacity:.75"></small></span><b class="konto"><i class="muenze"></i><span id="endeMuenzen">+0</span></b></div>
-    <div class="zeile" id="endeAuftragZeile" hidden><span>Aufträge erfüllt</span><b class="konto"><i class="muenze"></i><span id="endeAuftrag">+0</span></b></div>
+    <div class="zeile" id="endeAuftragZeile" hidden><span>Aufträge und Erfolge</span><b class="konto"><i class="muenze"></i><span id="endeAuftrag">+0</span></b></div>
     <div class="zeile" id="endeWeltZeile" hidden><span>Bestenliste</span><b id="endeWelt">…</b></div>
     <div class="rennen-warten" id="endeRennen" hidden></div>
     <div style="height:18px"></div>
@@ -443,8 +461,12 @@
 
 <div class="ebene aus" id="auftraegeEbene">
   <div class="schild liste-schild" role="dialog" aria-labelledby="auftraegeTitel">
-    <h1 id="auftraegeTitel">Aufträge</h1>
-    <div class="unter" style="font-size:17px">Jeden Tag drei neue. Schaffst du einen in einer Fahrt, gibt es die Münzen sofort.</div>
+    <h1 id="auftraegeTitel">Ziele</h1>
+    <div class="reiter" id="zieleReiter" role="tablist">
+      <button role="tab" data-reiter="auftraege" aria-selected="true">Aufträge</button>
+      <button role="tab" data-reiter="erfolge" aria-selected="false">Erfolge</button>
+    </div>
+    <div class="unter" id="zieleUnter" style="font-size:17px;margin-bottom:6px"></div>
     <div class="liste" id="auftraegeListe"></div>
     <div class="hinweis" id="auftraegeHinweis"></div>
     <button class="knopf" id="auftraegeZurueck">Zurück</button>
@@ -590,7 +612,9 @@ const LACKE = [
 const AUTOS = {
   kestrel:{ name:'Kestrel GT', kurz:'K', typ:'sport', preis:0, info:'Ausgewogener Sportwagen.', lenk:1, schutz:0, punkte:1, werte:[3,3,3] },
   brutus:{ name:'Brutus V8', kurz:'B', typ:'muscle', preis:1500, info:'Ein Airbag extra pro Fahrt, lenkt etwas träger.', lenk:0.9, schutz:1, punkte:1, werte:[2,5,3] },
-  vesper:{ name:'Vesper Hyper', kurz:'V', typ:'hyper', preis:3500, info:'Messerscharfe Lenkung und 15 % mehr Punkte.', lenk:1.25, schutz:0, punkte:1.15, werte:[5,2,5] }
+  nomad:{ name:'Nomad SUV', kurz:'N', typ:'suv', preis:2500, info:'Zwei Airbags extra pro Fahrt, dafür schwerfällig und 5 % weniger Punkte.', lenk:0.8, schutz:2, punkte:0.95, werte:[1,5,2] },
+  vesper:{ name:'Vesper Hyper', kurz:'V', typ:'hyper', preis:3500, info:'Messerscharfe Lenkung und 15 % mehr Punkte.', lenk:1.25, schutz:0, punkte:1.15, werte:[5,2,5] },
+  phantom:{ name:'Phantom EV', kurz:'P', typ:'ev', preis:5000, info:'Elektrisch: Nitro lädt doppelt so schnell, 10 % mehr Punkte.', lenk:1.1, schutz:0, punkte:1.1, nitroLade:2, werte:[4,3,4] }
 };
 // Nitro-Schub je Stufe: mehr Tuning = schneller = mehr Punkte, aber mit fester Obergrenze (Stufe 5: +110 km/h)
 const nitroSchub = l => 60 + l*10;
@@ -1104,6 +1128,9 @@ const TYPEN = {
     kabine:[[-2.2,1.13],[-2.1,1.74],[0.7,1.76],[1.42,1.14]] },
   transporter:{ l:5.6, b:2.0, rad:0.36, radZ:1.9, rueckY:1.0, frontY:0.8,
     unten:[[-2.8,0.35],[-2.8,2.55],[1.35,2.6],[2.25,1.55],[2.8,1.05],[2.8,0.35]], kabine:null },
+  ev:{ l:4.85, b:1.98, rad:0.36, radZ:1.6, rueckY:0.74, frontY:0.6,
+    unten:[[-2.42,0.27],[-2.45,0.66],[-2.3,0.82],[-1.2,0.88],[1.1,0.84],[2.25,0.6],[2.45,0.4],[2.38,0.27]],
+    kabine:[[-1.65,0.86],[-0.5,1.22],[0.3,1.24],[1.2,0.8]] },
   lkw:{ l:13.2, b:2.5, rad:0.52, rueckY:1.05, frontY:1.0 }
 };
 const geoCache = {};
@@ -1233,6 +1260,15 @@ function spielerModellBauen(){
     const fluegel = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.05, 0.45), plastikMat); fluegel.position.set(0, 1.22, rz - 0.4); fluegel.rotation.x = -0.1; m.add(fluegel);
     [-0.55, 0.55].forEach(x => { const st = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.14), plastikMat); st.position.set(x, 1.0, rz - 0.4); m.add(st); });
     [-1, 1].forEach(sx => { const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.28, 0.7), plastikMat); e.position.set(sx*(t.b/2 - 0.02), 0.62, 0.35); m.add(e); });
+  } else if (auto.typ === 'suv'){
+    const traeger = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 2.0), plastikMat); traeger.position.set(0, 1.85, 0.25); m.add(traeger);
+    [-0.68, 0.68].forEach(x => { const r = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.09, 2.2), felgeMat); r.position.set(x, 1.86, 0.25); m.add(r); });
+    const buegel = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.12), felgeMat); buegel.position.set(0, 0.62, -t.l/2 - 0.05); m.add(buegel);
+  } else if (auto.typ === 'ev'){
+    const led = new THREE.Mesh(new THREE.BoxGeometry(t.b*0.9, 0.035, 0.04), new THREE.MeshBasicMaterial({ color:0xbfe6ff, toneMapped:false }));
+    led.position.set(0, t.frontY + 0.1, -t.l/2 - 0.01); m.add(led);
+    const gl = leuchten(0x7fd0ff, 1, 0.55); gl.scale.set(2.8, 0.45, 1); gl.position.set(0, t.frontY + 0.1, -t.l/2 - 0.12); m.add(gl);
+    const lippe = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.03, 0.2), paint); lippe.position.set(0, 0.86, rz - 0.15); lippe.rotation.x = -0.15; m.add(lippe);
   }
   const diffusor = new THREE.Mesh(new THREE.BoxGeometry(t.b*0.82, 0.14, 0.25), plastikMat); diffusor.position.set(0, 0.33, rz - 0.05); m.add(diffusor);
   [-0.45, 0.45].forEach(x => { const a = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 10), felgeMat); a.rotation.x = Math.PI/2; a.position.set(x, 0.36, rz + 0.05); m.add(a); });
@@ -1457,7 +1493,7 @@ function baustelleAktualisieren(dt){
       baustelle.durch = true;
       if (!baustelle.kratzer){
         lauf.baustellen++;
-        const bonus = Math.round(400*S.faktor*fahrzeug().punkte);
+        const bonus = Math.round(400*S.faktor*fahrzeug().punkte*modusFaktor());
         punkte += bonus;
         knappZeigen('Baustelle geschafft  +' + bonus);
         klang.knapp();
@@ -1468,6 +1504,181 @@ function baustelleAktualisieren(dt){
     baustelleBeenden();
     naechsteBaustelle = distanz + 2000 + ableiten(zufall.baustelle)()*2000;
   }
+}
+
+/* ---------- Polizei-Verfolgung ----------
+   Ein Streifenwagen folgt mit Blaulicht. Er fährt etwas schneller als das Grundtempo:
+   Wer nur rollt, wird eingeholt, wer Gas gibt, hält Abstand. Knappe Manöver bringen 6 m Luft. */
+const JAGD_START = 70, JAGD_MAX = 130;
+const polizei = { abstand:JAGD_START, x:0, modell:null, blau:[] };
+{
+  const m = baueAuto('limo', 0xe9ecef);
+  const t = TYPEN.limo;
+  const streifen = new THREE.Mesh(new THREE.BoxGeometry(t.b + 0.03, 0.15, 2.8), lack(0x1d4f9c)); streifen.position.set(0, 0.6, 0.1); m.add(streifen);
+  const balken = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.3), plastikMat); balken.position.set(0, 1.53, 0.15); m.add(balken);
+  [-0.4, 0.4].forEach(x => { const l = leuchten(0x2a6bff, 2.6, 0); l.position.set(x, 1.62, 0.15); m.add(l); polizei.blau.push(l); });
+  m.userData.vorn.forEach(v => { const gl = leuchten(0xe8f0ff, 2.2, 0.9); gl.position.copy(v.position); gl.position.z -= 0.1; m.add(gl); });
+  m.visible = false; szene.add(m); polizei.modell = m;
+}
+function jagdAktualisieren(dt){
+  const an = modus === 'jagd' && zustand !== 'menue' && zustand !== 'garage';
+  polizei.modell.visible = an;
+  if (!an){
+    if (hudCache.jagd){ hudCache.jagd = false; klang.sirene(0); $('blaulicht').style.opacity = 0; }
+    return;
+  }
+  hudCache.jagd = true;
+  if (zustand === 'fahrt'){
+    const basis = Math.min(S.basisMax, S.start + zeit*S.anstieg);
+    // in den ersten Sekunden hält die Polizei nur das eigene Tempo
+    const pKmh = zeit < 4 ? kmh : Math.min(S.basisMax + S.gasPlus*0.75, basis + S.gasPlus*0.75);
+    polizei.abstand = Math.min(JAGD_MAX, polizei.abstand + (kmh - pKmh)/3.6*dt);
+    if (polizei.abstand <= 0){ polizei.abstand = 0; wackeln = 0.8; randRot = 0.8; klang.crash(); spielEnde(false, 'gestellt'); }
+  } else if (zustand !== 'pause') polizei.abstand += (3 - polizei.abstand)*Math.min(1, dt*0.8);   // fährt nach Unfall heran
+  polizei.x += (spielerX - polizei.x)*Math.min(1, dt*1.4);
+  const m = polizei.modell;
+  m.position.set(polizei.x, 0, spielerL/2 + polizei.abstand + TYPEN.limo.l/2);
+  m.userData.raeder.forEach(r => r.rotation.x -= tempo*dt/0.33);
+  const t = performance.now()/1000, takt = Math.floor(t*7) % 4;
+  polizei.blau[0].material.opacity = takt === 0 || takt === 1 ? 1 : 0;
+  polizei.blau[1].material.opacity = takt === 2 || takt === 3 ? 1 : 0;
+  const nah = Math.max(0, 1 - polizei.abstand/JAGD_MAX);
+  klang.sirene(zustand === 'fahrt' || zustand === 'crash' ? 0.25 + nah*0.75 : zustand === 'ende' ? 0.08 : 0.3);
+  // Blaulicht am Bildschirmrand, je näher desto stärker
+  const st = Math.max(0, (45 - polizei.abstand)/45);
+  const bl = $('blaulicht');
+  bl.style.opacity = st.toFixed(2);
+  bl.style.boxShadow = `inset 0 0 120px ${takt < 2 ? 'rgba(40,110,255,.7)' : 'rgba(255,40,60,.45)'}`;
+  const ab = Math.round(polizei.abstand);
+  if (ab !== hudCache.jagdAb){
+    hudCache.jagdAb = ab;
+    $('jagdAbstand').textContent = ab + ' m';
+    $('jagdFuellung').style.width = Math.round(polizei.abstand/JAGD_MAX*100) + '%';
+    $('jagdHud').classList.toggle('nah', ab < 25);
+  }
+}
+
+/* ---------- Geisterauto der Bestfahrt ----------
+   Die beste Fahrt je Stufe (und die heutige Tagesfahrt) wird alle 0,1 s aufgezeichnet
+   und fährt beim nächsten Versuch als halbtransparentes Auto mit. */
+const GEIST_TAKT = 0.1, GEIST_MAX = 6000;
+const geist = { aufnahme:null, t:0, daten:null, modell:null, typ:null };
+const geistSchluessel = () => modus === 'tag' ? 'bs_geist_tag' : 'bs_geist_' + modus + '_' + stufe;
+function geistModell(typ){
+  const m = baueAuto(typ, 0x7fd0ff);
+  m.traverse(o => {
+    if (!o.material) return;
+    o.material = o.material.clone();
+    o.material.transparent = true; o.material.opacity = (o.material.opacity === undefined ? 1 : o.material.opacity)*0.35; o.material.depthWrite = false;
+  });
+  m.visible = false; szene.add(m);
+  return m;
+}
+function geistStarten(){
+  const imRennen = online.imRennen();
+  geist.aufnahme = imRennen ? null : { d:[], x:[] }; geist.t = 0;
+  let g = imRennen ? null : speicher.lies(geistSchluessel(), null);
+  if (g && (!Array.isArray(g.d) || !Array.isArray(g.x) || (modus === 'tag' && g.tag !== tag))) g = null;
+  geist.daten = g;
+  const typ = g ? (AUTOS[g.auto] || AUTOS.kestrel).typ : null;
+  if (geist.modell && geist.typ !== typ){
+    szene.remove(geist.modell);
+    geist.modell.traverse(o => { if (o.material) o.material.dispose(); });
+    geist.modell = null;
+  }
+  if (typ && !geist.modell){ geist.modell = geistModell(typ); geist.typ = typ; }
+  $('geistHud').classList.remove('an'); hudCache.geist = null;
+}
+function geistAufnehmen(dt){
+  const a = geist.aufnahme;
+  if (!a || a.d.length >= GEIST_MAX) return;
+  geist.t += dt;
+  while (geist.t >= GEIST_TAKT){ geist.t -= GEIST_TAKT; a.d.push(Math.round((distanz - startDistanz)*10)); a.x.push(Math.round(spielerX*100)); }
+}
+function geistSpeichern(){
+  const a = geist.aufnahme;
+  if (!a || a.d.length < 20) return;
+  speicher.schreib(geistSchluessel(), { tag:modus === 'tag' ? tag : undefined, auto:modus === 'tag' ? 'kestrel' : stand.auto, punkte:Math.floor(punkte), d:a.d, x:a.x });
+}
+function geistZeigen(dt){
+  const g = geist.daten, m = geist.modell;
+  if (!g || !m){ if (m) m.visible = false; return; }
+  const i = zeit/GEIST_TAKT - 1, k = Math.floor(i);
+  const laeuft = zustand === 'fahrt' || zustand === 'crash' || zustand === 'pause';
+  if (!laeuft || k < 0 || k + 1 >= g.d.length){
+    m.visible = false;
+    if (laeuft && k + 1 >= g.d.length && hudCache.geist !== 'aus'){ hudCache.geist = 'aus'; $('geistHud').textContent = 'Bestfahrt endet hier – weiter so!'; }
+    return;
+  }
+  const f = i - k;
+  const d = (g.d[k] + (g.d[k + 1] - g.d[k])*f)/10, x = (g.x[k] + (g.x[k + 1] - g.x[k])*f)/100;
+  const ich = distanz - startDistanz, z = -(d - ich);
+  m.visible = z > -SICHT && z < 25;
+  m.position.set(x, 0, z);
+  m.userData.raeder.forEach(r => r.rotation.x -= tempo*dt/0.35);
+  // Anzeige: Vorsprung oder Rückstand auf die Bestfahrt
+  const diff = Math.round(ich - d), txt = diff >= 0 ? `Bestfahrt: ${diff} m vorn` : `Bestfahrt: ${-diff} m zurück`;
+  const el = $('geistHud');
+  if (hudCache.geist !== txt){ hudCache.geist = txt; el.textContent = txt; el.classList.add('an'); el.classList.toggle('vorn', diff >= 0); el.classList.toggle('hinten', diff < 0); }
+}
+
+/* ---------- Pannen ----------
+   Ab und zu steht ein liegengebliebenes Auto mit Warnblinker und Warndreieck auf der Fahrbahn.
+   Der Verkehr weicht aus, der Spieler auch – oder er sammelt ein knappes Manöver. */
+let naechstePanne = Infinity;
+const dreieckMat = new THREE.MeshBasicMaterial({ map:canvasTex(64, 64, (x, w, h) => {
+  x.clearRect(0, 0, w, h);
+  x.beginPath(); x.moveTo(w/2, 4); x.lineTo(w - 4, h - 6); x.lineTo(4, h - 6); x.closePath();
+  x.fillStyle = '#e8121e'; x.fill();
+  x.beginPath(); x.moveTo(w/2, 20); x.lineTo(w - 18, h - 14); x.lineTo(18, h - 14); x.closePath();
+  x.fillStyle = '#f2f2f2'; x.fill();
+}), transparent:true, side:THREE.DoubleSide });
+const dreieckGeo = new THREE.PlaneGeometry(0.75, 0.75);
+function panneSpawnen(){
+  const r = ableiten(zufall.panne);
+  const reihe = [0, 1, 2].map(sp => [r(), sp]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  for (const spur of reihe){
+    if (!spurFrei(spur, SPAWN_Z, 70) || gesperrt(spur, SPAWN_Z, 250)) continue;
+    erzeugeAuto(spur, SPAWN_Z, r);
+    const a = verkehr[verkehr.length - 1], u = a.userData;
+    Object.assign(u, { panne:true, basisV:0, v:0, wechselT:Infinity, gemeldet:false });
+    const d = new THREE.Mesh(dreieckGeo, dreieckMat); d.position.set(0, 0.38, u.l/2 + 30); a.add(d);
+    const fuss = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.3), plastikMat); fuss.position.set(0, 0.02, u.l/2 + 30); a.add(fuss);
+    return;
+  }
+}
+
+/* ---------- Tageszeit ----------
+   Bei klarem Wetter wandert der Himmel mit der Strecke: Dämmerung, tiefe Nacht, Morgengrauen und wieder zurück. */
+const HIMMEL = {
+  daemmerung:{ horizont:new THREE.Color(NEBEL), mitte:new THREE.Color(0x0e1234), oben:new THREE.Color(0x03040d), glut:new THREE.Color(0xb4533c) },
+  nacht:{ horizont:new THREE.Color(0x141522), mitte:new THREE.Color(0x060918), oben:new THREE.Color(0x020308), glut:new THREE.Color(0x1c1418) },
+  morgen:{ horizont:new THREE.Color(0x4a3651), mitte:new THREE.Color(0x24315c), oben:new THREE.Color(0x0b1232), glut:new THREE.Color(0xff9a62) }
+};
+let tageszeitKm = 0, tageszeitTakt = 0;
+function tageszeitAktualisieren(dt){
+  if (wetter !== 'klar') return;
+  const ziel = zustand === 'menue' || zustand === 'garage' ? 0 : (distanz - startDistanz)/1000;
+  tageszeitKm += (ziel - tageszeitKm)*Math.min(1, dt*(ziel === 0 ? 0.6 : 4));
+  if ((tageszeitTakt -= dt) > 0) return;
+  tageszeitTakt = 0.15;
+  const km = Math.max(0, tageszeitKm), H = HIMMEL;
+  let a, b, f;
+  if (km < 5){ a = b = H.daemmerung; f = 0; }
+  else if (km < 12){ a = H.daemmerung; b = H.nacht; f = (km - 5)/7; }
+  else {
+    const k = (km - 12) % 16;   // Nacht → Morgengrauen → Nacht
+    if (k < 4){ a = b = H.nacht; f = 0; }
+    else if (k < 9){ a = H.nacht; b = H.morgen; f = (k - 4)/5; }
+    else if (k < 11){ a = b = H.morgen; f = 0; }
+    else { a = H.morgen; b = H.nacht; f = (k - 11)/5; }
+  }
+  f = f*f*(3 - 2*f);
+  const u = himmelMat.uniforms;
+  ['horizont', 'mitte', 'oben', 'glut'].forEach(n => u[n].value.lerpColors(a[n], b[n], f));
+  szene.fog.color.copy(u.horizont.value); szene.background.copy(u.horizont.value);
+  const morgen = (a === H.morgen ? 1 - f : 0) + (b === H.morgen ? f : 0);
+  if (himmelDeko[0] && himmelDeko[0].material) himmelDeko[0].material.opacity = 1 - morgen*0.75;
 }
 
 /* ---------- Tempolinien & Funken ---------- */
@@ -1529,6 +1740,18 @@ const klang = {
     regenQ.connect(rf); rf.connect(this.regenGain); this.regenGain.connect(this.master); regenQ.start(0, 0.7);
   },
   regenAn:false,
+  // Martinshorn: zwei Töne im Wechsel, Lautstärke nach Abstand
+  sirene(v){
+    if (!this.ctx) return;
+    if (!this.sireneGain){
+      const c = this.ctx, o = c.createOscillator(), lfo = c.createOscillator(), hub = c.createGain(), g = c.createGain(), f = c.createBiquadFilter();
+      o.type = 'square'; o.frequency.value = 512; lfo.type = 'square'; lfo.frequency.value = 0.68; hub.gain.value = 73;
+      f.type = 'lowpass'; f.frequency.value = 1800; g.gain.value = 0;
+      lfo.connect(hub); hub.connect(o.frequency); o.connect(f); f.connect(g); g.connect(this.master);
+      o.start(); lfo.start(); this.sireneGain = g;
+    }
+    this.sireneGain.gain.setTargetAtTime(v*0.045, this.ctx.currentTime, 0.25);
+  },
   regenSetzen(an){ this.regenAn = an; if (this.regenGain) this.regenGain.gain.setTargetAtTime(an ? 0.09 : 0, this.ctx.currentTime, 0.3); },
   donner(){ if (zustand === 'pause') return; this.rausch(3.2, 80, 0.35, 0.9, (Math.random() - 0.5), 0.6); this.rausch(1.2, 220, 0.5, 0.35, 0, 0.4); },
   motor(kmh, last){
@@ -1624,13 +1847,14 @@ let rekord = speicher.lies('bs_rekord_' + stufe, 0);
 let laufMuenzen = 0, nitro = 0, nitroZeit = 0, schutzLadungen = 0, unverwundbar = 0, naechsteMuenzen = 0;
 const verkehr = [];
 // Zufallsquellen für Verkehr, Münzen und Baustellen. In der Tagesfahrt feste Folgen aus dem Datum.
-const zufall = { welle:Math.random, muenzen:Math.random, baustelle:Math.random };
+const zufall = { welle:Math.random, muenzen:Math.random, baustelle:Math.random, panne:Math.random };
 const SERIE = { lenkung:0, magnet:0, nitro:0, airbag:0, muenzwert:0 };
 // In der Tagesfahrt fahren alle mit dem Kestrel GT ohne Tuning
 const tuning = () => modus === 'tag' ? SERIE : stand.upgrades;
 const fahrzeug = () => modus === 'tag' ? AUTOS.kestrel : AUTOS[stand.auto] || AUTOS.kestrel;
 // Kennzahlen der laufenden Fahrt (für Aufträge)
-let lauf = { knapp:0, km:0, combo:1, muenzen:0, baustellen:0, tempo:0, tempoMax:0, punkte:0, tagesfahrt:0 };
+const neuerLauf = () => ({ knapp:0, km:0, combo:1, muenzen:0, baustellen:0, tempo:0, tempoMax:0, t280:0, tempo280:0, punkte:0, tagesfahrt:modus === 'tag' ? 1 : 0 });
+let lauf = neuerLauf();
 const eingabe = { links:false, rechts:false, gas:false, bremse:false };
 const touchPunkte = new Map();
 
@@ -1933,7 +2157,7 @@ function garageSchliessen(){
   spielerModellBauen();
   zustand = 'menue';
   zeige('garage', false); zeige('menue', true);
-  kontoAnzeigen(); auftraegeAnzeigen(); tagesInfoAnzeigen();
+  erfolgePruefen(); kontoAnzeigen(); auftraegeAnzeigen(); tagesInfoAnzeigen();
   if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50);
 }
 $('garageOeffnen').addEventListener('click', garageOeffnen);
@@ -1968,7 +2192,7 @@ function airbagAusloesen(a){
 function tonUmschalten(){ klang.schalten(!klang.an); $('ton').textContent = klang.an ? '🔊' : '🔇'; }
 $('ton').textContent = klang.an ? '🔊' : '🔇';
 const fmt = n => Math.floor(n).toLocaleString('de-DE');
-function rekordAnzeigen(){ $('rekordMenue').textContent = fmt(rekord); $('rekordHud').textContent = fmt(rekord); $('stufeHud').textContent = modus === 'tag' ? 'Tagesfahrt' : S.name; }
+function rekordAnzeigen(){ $('rekordMenue').textContent = fmt(rekord); $('rekordHud').textContent = fmt(rekord); $('stufeHud').textContent = modus === 'tag' ? 'Tagesfahrt' : modus === 'jagd' ? 'Verfolgung ' + S.name : S.name; }
 function stufeSetzen(neu){
   stufe = neu; S = STUFEN[neu]; speicher.schreib('bs_stufe', neu);
   rekord = speicher.lies('bs_rekord_' + neu, 0);
@@ -1991,31 +2215,41 @@ function tagesInfoAnzeigen(){
   const [j, m, d] = t.split('-').map(Number);
   $('tagesInfo').textContent = `${d}.${m}. · ${w.name}${w.bonus > 1 ? ' +' + Math.round((w.bonus - 1)*100) + ' %' : ''}`;
 }
+// Modi: frei (normale Fahrt), tag (Tagesfahrt), jagd (Polizei-Verfolgung).
+// Die Tagesfahrt überschreibt Stufe und Wetter und gibt sie beim Verlassen zurück.
+function rekordLesen(){
+  return modus === 'tag' ? tagesRekord() : speicher.lies((modus === 'jagd' ? 'bs_rekord_jagd_' : 'bs_rekord_') + stufe, 0);
+}
 function modusSetzen(neu){
+  if (neu === modus && neu !== 'tag') return;
+  const warTag = modus === 'tag';
   if (neu === 'tag'){
-    if (modus !== 'tag'){ freiStufe = stufe; freiWetter = wetter; }
+    if (!warTag){ freiStufe = stufe; freiWetter = wetter; }
     modus = 'tag'; tag = tagHeute();
     stufe = 'normal'; S = STUFEN.normal;
     wetter = tagesWetter(tag);
-    rekord = tagesRekord();
   } else {
-    if (modus !== 'tag') return;
-    modus = 'frei'; wetter = freiWetter;
-    stufeSetzen(freiStufe);
-    tagesInfoAnzeigen();
+    modus = neu;
+    if (warTag){ wetter = freiWetter; stufeSetzen(freiStufe); tagesInfoAnzeigen(); }
   }
+  document.documentElement.classList.toggle('jagd', modus === 'jagd');
+  rekord = rekordLesen();
   rekordAnzeigen();
-  wetterAnwenden();
+  if (warTag || neu === 'tag') wetterAnwenden();
 }
+// Punkte- und Münzfaktor des Modus: Die Verfolgung ist schwerer und bringt mehr
+const modusFaktor = () => modus === 'jagd' ? 1.25 : 1;
 function zufallSetzen(){
   if (modus === 'tag'){
     zufall.welle = zufallsfolge(samen(tag + ':verkehr'));
     zufall.muenzen = zufallsfolge(samen(tag + ':muenzen'));
     zufall.baustelle = zufallsfolge(samen(tag + ':baustellen'));
-  } else zufall.welle = zufall.muenzen = zufall.baustelle = Math.random;
+    zufall.panne = zufallsfolge(samen(tag + ':pannen'));
+  } else zufall.welle = zufall.muenzen = zufall.baustelle = zufall.panne = Math.random;
 }
 tagesInfoAnzeigen();
 $('tagesfahrt').addEventListener('click', () => { modusSetzen('tag'); starten(); });
+$('verfolgung').addEventListener('click', () => { modusSetzen('jagd'); starten(); });
 $('zumMenue').addEventListener('click', () => {
   spielerZuruecksetzen(); zustand = 'menue';
   modusSetzen('frei');
@@ -2055,25 +2289,90 @@ function auftraegePruefen(){
     klang.kaufen();
   });
 }
+let zieleReiter = 'auftraege';
+function zielZeile(fertig, titel, unter, lohn){
+  const z = document.createElement('div'); z.className = 'auftrag' + (fertig ? ' fertig' : '');
+  const haken = document.createElement('span'); haken.className = 'haken'; haken.textContent = fertig ? '✓' : '';
+  const text = document.createElement('div'); text.className = 'text'; text.textContent = titel;
+  const klein = document.createElement('small'); klein.textContent = unter; text.append(klein);
+  const b = document.createElement('b'); b.innerHTML = '<i class="muenze"></i>'; b.append('+' + lohn.toLocaleString('de-DE'));
+  z.append(haken, text, b);
+  return z;
+}
 function auftraegeAnzeigen(){
   const a = auftraegeHeute(), n = a.st.erledigt.filter(Boolean).length;
-  $('auftraegeStand').textContent = n === 3 ? 'alle erfüllt ✓' : `${n} von 3 erfüllt`;
+  $('auftraegeStand').textContent = (n === 3 ? 'Aufträge ✓' : `${n} von 3`) + ` · ${erreicht.size}/${ERFOLGE.length}`;
+  $('zieleReiter').querySelectorAll('button').forEach(b => b.setAttribute('aria-selected', b.dataset.reiter === zieleReiter));
   const box = $('auftraegeListe'); box.replaceChildren();
+  if (zieleReiter === 'erfolge'){
+    $('zieleUnter').textContent = `${erreicht.size} von ${ERFOLGE.length} Erfolgen. Jeder bringt einmal Münzen.`;
+    const g = gesamtWerte(false);
+    ERFOLGE.forEach(e => box.append(zielZeile(erreicht.has(e.id), e.name, e.text, e.lohn)));
+    $('auftraegeHinweis').textContent = `Bisher: ${g.km.toLocaleString('de-DE', { maximumFractionDigits:1 })} km, ${g.knapp.toLocaleString('de-DE')} knappe Manöver, ${g.fahrten.toLocaleString('de-DE')} Fahrten.`;
+    return;
+  }
+  $('zieleUnter').textContent = 'Jeden Tag drei neue. Schaffst du einen in einer Fahrt, gibt es die Münzen sofort.';
   a.liste.forEach((x, i) => {
     const fertig = a.st.erledigt[i];
-    const z = document.createElement('div'); z.className = 'auftrag' + (fertig ? ' fertig' : '');
-    const haken = document.createElement('span'); haken.className = 'haken'; haken.textContent = fertig ? '✓' : '';
-    const text = document.createElement('div'); text.className = 'text'; text.textContent = x.text;
-    const klein = document.createElement('small'); klein.textContent = fertig ? 'erfüllt' : 'in einer Fahrt schaffen'; text.append(klein);
-    const lohn = document.createElement('b'); lohn.innerHTML = '<i class="muenze"></i>'; lohn.append('+' + x.lohn);
-    z.append(haken, text, lohn); box.append(z);
+    box.append(zielZeile(fertig, x.text, fertig ? 'erfüllt' : 'in einer Fahrt schaffen', x.lohn));
   });
-  $('auftraegeHinweis').textContent = n === 3 ? 'Alles erledigt! Morgen gibt es neue Aufträge.' : 'Die Aufträge gelten für alle Stufen, die Tagesfahrt und Online-Rennen.';
+  $('auftraegeHinweis').textContent = n === 3 ? 'Alles erledigt! Morgen gibt es neue Aufträge.' : 'Die Aufträge gelten für alle Stufen und Modi.';
+}
+/* ---------- Erfolge ----------
+   Dauerhafte Ziele über alle Fahrten. Jeder Erfolg gibt einmal Münzen. */
+const statistik = Object.assign({ km:0, knapp:0, fahrten:0, baustellen:0, muenzen:0, tage:[] }, speicher.lies('bs_statistik', {}));
+const erreicht = new Set(speicher.lies('bs_erfolge', []));
+const ERFOLGE = [
+  { id:'erste', name:'Erste Ausfahrt', text:'Eine Fahrt beenden', lohn:50, ok:g => g.fahrten >= 1 },
+  { id:'km25', name:'Pendler', text:'25 km insgesamt', lohn:150, ok:g => g.km >= 25 },
+  { id:'km100', name:'Fernfahrer', text:'100 km insgesamt', lohn:400, ok:g => g.km >= 100 },
+  { id:'km500', name:'Kilometerfresser', text:'500 km insgesamt', lohn:1200, ok:g => g.km >= 500 },
+  { id:'knapp100', name:'Haarscharf', text:'100 knappe Manöver insgesamt', lohn:200, ok:g => g.knapp >= 100 },
+  { id:'knapp1000', name:'Lückenkünstler', text:'1.000 knappe Manöver insgesamt', lohn:800, ok:g => g.knapp >= 1000 },
+  { id:'combo8', name:'Volle Combo', text:'Combo ×8 in einer Fahrt', lohn:500, ok:(g, l) => l.combo >= 8 },
+  { id:'km10', name:'Durchhalter', text:'10 km in einer Fahrt', lohn:400, ok:(g, l) => l.km >= 10 },
+  { id:'bau10', name:'Baustellenprofi', text:'10 Baustellen ohne Kratzer insgesamt', lohn:300, ok:g => g.baustellen >= 10 },
+  { id:'nebel', name:'Nebelfahrer', text:'5 km in einer Fahrt im Nebel', lohn:300, ok:(g, l) => l.km >= 5 && wetter === 'nebel' },
+  { id:'regen', name:'Aquaplaning', text:'5 km in einer Fahrt im Regen', lohn:250, ok:(g, l) => l.km >= 5 && wetter === 'regen' },
+  { id:'schwer', name:'Hartgesotten', text:'5 km in einer Fahrt auf Schwer', lohn:400, ok:(g, l) => l.km >= 5 && stufe === 'schwer' && modus !== 'tag' },
+  { id:'tempo', name:'Tiefflug', text:'15 Sekunden am Stück über 280 km/h', lohn:350, ok:(g, l) => l.tempo280 >= 15 },
+  { id:'jagd', name:'Entkommen', text:'5 km in der Verfolgung', lohn:400, ok:(g, l) => modus === 'jagd' && l.km >= 5 },
+  { id:'tage', name:'Stammgast', text:'An 7 Tagen die Tagesfahrt fahren', lohn:500, ok:g => g.tage >= 7 },
+  { id:'muenzen', name:'Sparschwein', text:'1.000 Münzen auf der Straße einsammeln', lohn:300, ok:g => g.muenzen >= 1000 },
+  { id:'fuhrpark', name:'Fuhrpark', text:'Alle Autos besitzen', lohn:1000, ok:() => Object.keys(AUTOS).every(a => stand.autos.includes(a)) }
+];
+// Gesamtwerte inklusive der laufenden Fahrt (die erst am Ende in die Statistik gebucht wird)
+function gesamtWerte(mitLauf){
+  const l = mitLauf ? lauf : neuerLauf();
+  const tage = new Set(statistik.tage); if (mitLauf && modus === 'tag') tage.add(tag);
+  return { km:statistik.km + l.km, knapp:statistik.knapp + l.knapp, fahrten:statistik.fahrten, baustellen:statistik.baustellen + l.baustellen, muenzen:statistik.muenzen + l.muenzen, tage:tage.size };
+}
+let laufGebucht = true;
+function statistikBuchen(){
+  if (laufGebucht) return;
+  laufGebucht = true;
+  statistik.km += lauf.km; statistik.knapp += lauf.knapp; statistik.fahrten++;
+  statistik.baustellen += lauf.baustellen; statistik.muenzen += lauf.muenzen;
+  if (modus === 'tag' && !statistik.tage.includes(tag)) statistik.tage = [...statistik.tage, tag].slice(-60);
+  speicher.schreib('bs_statistik', statistik);
+}
+function erfolgePruefen(){
+  const fahrend = !laufGebucht;
+  const g = gesamtWerte(fahrend), l = fahrend ? lauf : neuerLauf();
+  ERFOLGE.forEach(e => {
+    if (erreicht.has(e.id) || !e.ok(g, l)) return;
+    erreicht.add(e.id); speicher.schreib('bs_erfolge', [...erreicht]);
+    stand.muenzen += e.lohn; speichern(); kontoAnzeigen();
+    if (fahrend || zustand === 'ende') laufAuftragLohn += e.lohn;
+    meldung(`Erfolg: ${e.name}  +${e.lohn} Münzen`, 3.5);
+    klang.kaufen();
+  });
 }
 const auftraegeOffen = () => !$('auftraegeEbene').classList.contains('aus');
 function auftraegeOeffnen(){ auftraegeAnzeigen(); zeige('menue', false); zeige('auftraegeEbene', true); setTimeout(() => $('auftraegeZurueck').focus(), 60); }
 function auftraegeSchliessen(){ zeige('auftraegeEbene', false); zeige('menue', true); auftraegeAnzeigen(); if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50); }
 $('auftraegeOeffnen').addEventListener('click', auftraegeOeffnen);
+$('zieleReiter').addEventListener('click', e => { const b = e.target.closest('button'); if (b){ zieleReiter = b.dataset.reiter; auftraegeAnzeigen(); $('auftraegeListe').scrollTop = 0; } });
 $('auftraegeZurueck').addEventListener('click', auftraegeSchliessen);
 auftraegeAnzeigen();
 
@@ -2143,9 +2442,12 @@ function starten(){
   laufMuenzen = 0; nitro = tuning().nitro ? 0.3 : 0; nitroZeit = 0;
   schutzLadungen = tuning().airbag + (fahrzeug().schutz || 0); schutzAnzeigen();
   document.documentElement.classList.toggle('hat-nitro', tuning().nitro > 0);
-  lauf = { knapp:0, km:0, combo:1, muenzen:0, baustellen:0, tempo:0, tempoMax:0, punkte:0, tagesfahrt:modus === 'tag' ? 1 : 0 };
+  lauf = neuerLauf(); laufGebucht = false;
   laufAuftragLohn = 0; auftragTakt = 0.5;
   baustelleBeenden(); naechsteBaustelle = distanz + 1300 + zufall.baustelle()*900;
+  naechstePanne = distanz + 2200 + zufall.panne()*1500;
+  polizei.abstand = JAGD_START; polizei.x = 0;
+  geistStarten();
   $('nitroText').textContent = IST_TOUCH ? 'Nitro' : 'Nitro (Leertaste)';
   muenzenLeeren(); naechsteMuenzen = distanz + 90;
   naechsterSpawn = distanz + 40; startDistanz = distanz;
@@ -2156,6 +2458,7 @@ function starten(){
   setTimeout(() => $('tipp').style.opacity = 0, 4500);
   meldungZeit = 0;
   if (modus === 'tag') meldung(`Tagesfahrt · ${WETTER[wetter].name} · Kestrel GT ohne Tuning`, 4);
+  if (modus === 'jagd') meldung('Die Polizei ist hinter dir! Gas geben, knappe Manöver bringen Abstand.', 4.5, true);
   canvas.focus && canvas.focus();
 }
 let startDistanz = 0;
@@ -2174,20 +2477,24 @@ function crash(a){
   funkenSpruehen(spielerX, 0.6, -1.5, 1.2);
   klang.crash();
 }
-function spielEnde(zeitUm = false){
+function spielEnde(zeitUm = false, grund = null){
   zustand = 'ende'; wachHalten(false);
   const neu = punkte > rekord;
   if (neu){
     rekord = Math.floor(punkte);
     if (modus === 'tag') speicher.schreib('bs_tagesrekord', { tag, punkte:rekord });
-    else speicher.schreib('bs_rekord_' + stufe, rekord);
+    else speicher.schreib((modus === 'jagd' ? 'bs_rekord_jagd_' : 'bs_rekord_') + stufe, rekord);
+    geistSpeichern();
   }
   auftraegePruefen();
-  $('endeStufe').textContent = modus === 'tag' ? 'Tagesfahrt (Normal)' : S.name;
-  $('endeRekordText').textContent = modus === 'tag' ? 'Dein Bestwert heute' : 'Rekord auf dieser Stufe';
+  erfolgePruefen();      // Erfolge der Fahrt selbst (Combo, Strecke …)
+  statistikBuchen();
+  erfolgePruefen();      // Erfolge über alle Fahrten
+  $('endeStufe').textContent = modus === 'tag' ? 'Tagesfahrt (Normal)' : modus === 'jagd' ? 'Verfolgung, ' + S.name : S.name;
+  $('endeRekordText').textContent = modus === 'tag' ? 'Dein Bestwert heute' : modus === 'jagd' ? 'Rekord Verfolgung' : 'Rekord auf dieser Stufe';
   $('endeAuftragZeile').hidden = !laufAuftragLohn;
   $('endeAuftrag').textContent = '+' + laufAuftragLohn.toLocaleString('de-DE');
-  $('zumMenue').hidden = modus !== 'tag';
+  $('zumMenue').hidden = modus === 'frei';
   $('endePunkte').textContent = fmt(punkte);
   $('neuerRekord').hidden = !neu;
   $('endeStrecke').textContent = ((distanz - startDistanz)/1000).toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 }) + ' km';
@@ -2195,16 +2502,18 @@ function spielEnde(zeitUm = false){
   $('endeRekord').textContent = fmt(rekord);
   const bonus = Math.floor(punkte/80);
   const wb = WETTER[wetter].bonus;
-  const verdient = Math.round((laufMuenzen + bonus)*(1 + stand.upgrades.muenzwert*0.2)*S.faktor*wb);
+  const verdient = Math.round((laufMuenzen + bonus)*(1 + stand.upgrades.muenzwert*0.2)*S.faktor*wb*modusFaktor());
   stand.muenzen += verdient; speichern(); kontoAnzeigen();
   $('endeMuenzen').textContent = '+' + verdient.toLocaleString('de-DE');
   $('endeMuenzDetail').textContent = `(${laufMuenzen} eingesammelt, ${bonus} Punktebonus${wb > 1 ? `, ${WETTER[wetter].name} +${Math.round((wb - 1)*100)} %` : ''})`;
-  $('endeText').textContent = zeitUm ? 'Die Zeit ist abgelaufen.' : ['Die Leitplanke hat gewonnen.', 'Das war zu knapp.', 'Warnblinker an, Dreieck raus.', 'Die Versicherung ruft an.'][Math.random()*4|0];
-  $('endeTitel').textContent = zeitUm ? 'Ziel' : 'Unfall';
+  $('endeText').textContent = zeitUm ? 'Die Zeit ist abgelaufen.' : grund === 'gestellt' ? 'Die Polizei hat dich eingeholt.'
+    : ['Die Leitplanke hat gewonnen.', 'Das war zu knapp.', 'Warnblinker an, Dreieck raus.', 'Die Versicherung ruft an.'][Math.random()*4|0];
+  $('endeTitel').textContent = zeitUm ? 'Ziel' : grund === 'gestellt' ? 'Gestellt' : 'Unfall';
   rekordAnzeigen();
   zeige('ende', true); $('hud').classList.remove('an');
   const f = { stufe, punkte:Math.floor(punkte), strecke:(distanz - startDistanz)/1000, dauer:zeit, knapp:knappZaehler };
   if (modus === 'tag') f.tag = tag;
+  if (modus === 'jagd') f.jagd = true;
   online.fahrtBeendet(f);
   setTimeout(() => ($('nochmal').hidden ? $('garageVonEnde') : $('nochmal')).focus(), 60);
 }
@@ -2326,18 +2635,28 @@ function update(dt){
   for (let i = verkehr.length - 1; i >= 0; i--){
     const a = verkehr[i], u = a.userData;
     // Vordermann suchen
-    let luecke = Infinity, vorV = u.basisV;
+    let luecke = Infinity, vorV = u.basisV, vorPanne = false;
     for (const b of verkehr){
       if (b === a) continue;
       if (Math.abs(b.position.x - a.position.x) > 2.4) continue;
       if (b.position.z >= a.position.z) continue;
       const l = a.position.z - b.position.z - (u.l + b.userData.l)/2;
-      if (l < luecke){ luecke = l; vorV = b.userData.v; }
+      if (l < luecke){ luecke = l; vorV = b.userData.v; vorPanne = !!b.userData.panne; }
+    }
+    // Liegengebliebenes Auto voraus: auf eine freie Nachbarspur ausweichen, sonst dahinter anhalten
+    if (vorPanne && luecke < 130 && !u.wechsel && !u.panne){
+      const opts = [u.spur - 1, u.spur + 1].filter(sp => sp >= 0 && sp <= 2 && !gesperrt(sp, a.position.z, 160) && spurFrei(sp, a.position.z, u.l/2 + 10));
+      if (opts.length){ const ziel = opts[u.rng()*opts.length|0]; u.wechsel = { von:u.spur, nach:ziel, t:0.6 }; u.zielSpur = ziel; }
+    }
+    if (u.panne){
+      const an = Math.floor(performance.now()/420) % 2 === 0;
+      u.blinker.forEach(b => b.material.opacity = an ? 1 : 0);
+      if (!u.gemeldet && fahrt && a.position.z > -260){ u.gemeldet = true; meldung(`Panne auf der ${['linken', 'mittleren', 'rechten'][u.spur]} Spur`, 3, true); }
     }
     let wunsch = u.basisV;
     if (luecke < 28) wunsch = Math.min(wunsch, vorV - (28 - luecke)*0.12);
     // Baustelle voraus in der eigenen Spur: in die Mitte einfädeln, sonst vor der Tafel anhalten
-    if (baustelle.aktiv && u.spur === baustelle.spur && !u.wechsel && a.position.z > baustelle.z){
+    if (baustelle.aktiv && u.spur === baustelle.spur && !u.wechsel && !u.panne && a.position.z > baustelle.z){
       const vorTafel = a.position.z - u.l/2 - baustelle.z;
       if (vorTafel < 160 && spurFrei(1, a.position.z, u.l/2 + 10)){ u.wechsel = { von:u.spur, nach:1, t:0.6 }; u.zielSpur = 1; }
       else if (vorTafel < 40) wunsch = Math.min(wunsch, Math.max(0, (vorTafel - 6)*0.35));
@@ -2388,8 +2707,9 @@ function update(dt){
         if (nah){
           knappZaehler++;
           combo = Math.min(8, combo + (comboZeit > 0 ? 1 : 0)); comboZeit = 5;
-          const bonus = Math.round((60 + kmh*0.6)*combo*S.faktor*fahrzeug().punkte*(nitroZeit > 0 ? 2 : 1));
-          if (tuning().nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.22);
+          const bonus = Math.round((60 + kmh*0.6)*combo*S.faktor*fahrzeug().punkte*modusFaktor()*(nitroZeit > 0 ? 2 : 1));
+          if (tuning().nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.22*(fahrzeug().nitroLade || 1));
+          if (modus === 'jagd') polizei.abstand = Math.min(JAGD_MAX, polizei.abstand + 6);
           punkte += bonus;
           knappZeigen((combo > 1 ? 'Knapp! ×' + combo : 'Knapp!') + '  +' + bonus);
           klang.knapp(); wackeln = Math.max(wackeln, 0.18);
@@ -2408,7 +2728,7 @@ function update(dt){
 
   // Punkte
   if (fahrt){
-    punkte += kmh*dt*0.12*(1 + (combo - 1)*0.15)*S.faktor*fahrzeug().punkte*(nitroZeit > 0 ? 2 : 1);
+    punkte += kmh*dt*0.12*(1 + (combo - 1)*0.15)*S.faktor*fahrzeug().punkte*modusFaktor()*(nitroZeit > 0 ? 2 : 1);
     unverwundbar = Math.max(0, unverwundbar - dt);
     if (spielerModell) spielerModell.visible = unverwundbar <= 0 || Math.floor(unverwundbar*12) % 2 === 0;
     if (distanz >= naechsteMuenzen){ muenzReiheSpawnen(); naechsteMuenzen = distanz + 110 + zufall.muenzen()*100; }
@@ -2416,9 +2736,15 @@ function update(dt){
     lauf.knapp = knappZaehler; lauf.km = (distanz - startDistanz)/1000; lauf.combo = Math.max(lauf.combo, combo);
     lauf.muenzen = laufMuenzen; lauf.punkte = punkte;
     lauf.tempo = kmh > 250 ? lauf.tempo + dt : 0; lauf.tempoMax = Math.max(lauf.tempoMax, lauf.tempo);
-    auftragTakt -= dt; if (auftragTakt <= 0){ auftragTakt = 0.25; auftraegePruefen(); }
+    lauf.t280 = kmh > 280 ? lauf.t280 + dt : 0; lauf.tempo280 = Math.max(lauf.tempo280, lauf.t280);
+    auftragTakt -= dt; if (auftragTakt <= 0){ auftragTakt = 0.25; auftraegePruefen(); erfolgePruefen(); }
+    if (distanz >= naechstePanne){ panneSpawnen(); naechstePanne = distanz + 1800 + zufall.panne()*2200; }
+    geistAufnehmen(dt);
   }
   baustelleAktualisieren(dt);
+  jagdAktualisieren(dt);
+  geistZeigen(dt);
+  tageszeitAktualisieren(dt);
   meldungZeit = Math.max(0, meldungZeit - dt);
   if (meldungZeit <= 0 && hudCache.meldung){ hudCache.meldung = false; $('meldung').classList.remove('an'); }
 
@@ -2443,7 +2769,7 @@ function update(dt){
         }
         if (Math.abs(spielerX - g.position.x) < spielerB/2 + 0.5 && Math.abs(g.position.z) < spielerL/2 + 0.5){
           laufMuenzen++; weg = true; klang.muenze();
-          if (tuning().nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.03);
+          if (tuning().nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.03*(fahrzeug().nitroLade || 1));
         }
       }
       if (!weg) for (const a of verkehr){
@@ -2764,6 +3090,7 @@ const online = (() => {
   async function ergebnisSenden(f){
     const zeile = $('endeWeltZeile'), wert = $('endeWelt');
     zeile.hidden = false;
+    if (f.jagd){ wert.textContent = 'Verfolgungen zählen nicht in der Bestenliste'; return; }
     if (konto && konto.olymp){ wert.textContent = f.tag ? 'In der Olympiade wird die Tagesfahrt nicht gewertet' : 'Olympia-Fahrt – wird nach dem Rennen eingetragen'; return; }
     if (!konto){
       wert.textContent = 'Name wählen, um gewertet zu werden';

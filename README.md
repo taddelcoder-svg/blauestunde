@@ -8,6 +8,12 @@ Endloses 3D-Nachtfahrt-Spiel im Browser (three.js). Weiche dem Verkehr aus – j
 - **Baustellen:** Ab und zu ist die linke oder rechte Spur gesperrt, mit Absperrtafel, Lauflicht und Bakenreihe. Der Verkehr fädelt ein. Wer die Baken streift, kracht (oder verbraucht einen Airbag). Ohne Kratzer gibt es einen Bonus.
 - **Nebel:** Neues Wetter. Die Sicht endet nach gut 150 m, dafür gibt es 35 % mehr Münzen.
 - **Aufträge:** Jeden Tag drei Aufgaben für alle, z. B. „15 knappe Manöver in einer Fahrt“. Die Münzen gibt es sofort, wenn ein Auftrag geschafft ist.
+- **Erfolge:** 17 dauerhafte Ziele über alle Fahrten (z. B. 100 km insgesamt, Combo ×8, 5 km im Nebel), jeder bringt einmal Münzen. Aufträge und Erfolge stehen im Menü unter „Ziele“.
+- **Polizei-Verfolgung:** Eigener Modus. Ein Streifenwagen mit Blaulicht und Martinshorn folgt dir. Wer nur rollt, wird eingeholt, mit Gas hältst du Abstand, knappe Manöver bringen 6 m Luft. 25 % mehr Punkte und Münzen, eigener Rekord; Verfolgungen kommen nicht in die Online-Bestenliste.
+- **Geisterauto:** Deine Bestfahrt je Stufe und Modus (und die heutige Tagesfahrt) fährt als halbtransparentes Auto mit. Oben links steht, wie viele Meter du vorn oder zurück bist.
+- **Pannen:** Ab und zu steht ein liegengebliebenes Auto mit Warnblinker und Warndreieck auf der Fahrbahn. Der Verkehr weicht aus.
+- **Tageszeit:** Bei klarem Wetter wandert der Himmel mit der Strecke von der Dämmerung in die Nacht und ins Morgengrauen.
+- **Neue Autos:** Nomad SUV (zwei Airbags extra, schwerfällig) und Phantom EV (Nitro lädt doppelt so schnell, 10 % mehr Punkte).
 
 ## Online-Funktionen
 
