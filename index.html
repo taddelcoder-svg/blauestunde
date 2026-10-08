@@ -307,6 +307,22 @@
   .renn-stand li.aus-rang{opacity:.5;text-decoration:line-through}
   .renn-stand span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
   @media (max-width:560px){ .renn-hud{min-width:150px;top:calc(58px + env(safe-area-inset-top,0px))} .renn-stand{font-size:14px} }
+  /* Nachtschicht: Tagesfahrt, Aufträge, Baustellen */
+  .reihe{display:flex;gap:10px}
+  .reihe .knopf{flex:1;min-width:0;font-size:20px;padding-left:6px;padding-right:6px}
+  .tages-knopf{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05}
+  .tages-knopf small{font-size:14px;font-weight:600;opacity:.85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .auftrag{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 6px;border-top:2px solid rgba(243,245,247,.2);font-size:18px;font-weight:600}
+  .auftrag .haken{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.5);display:grid;place-items:center;font-size:15px;font-weight:800}
+  .auftrag.fertig .haken{background:#6ee29a;border-color:#6ee29a;color:#0b2a16}
+  .auftrag.fertig .text{opacity:.7}
+  .auftrag small{display:block;font-size:14px;opacity:.75;font-weight:600}
+  .auftrag b{white-space:nowrap;display:inline-flex;align-items:center}
+  .meldung{position:absolute;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:rgba(10,12,28,.72);border:2px solid var(--natrium);
+    border-radius:8px;padding:6px 14px;font-size:18px;font-weight:700;opacity:0;transition:opacity .4s;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(6px)}
+  .meldung.an{opacity:1}
+  .meldung.warnung{border-color:#f2b705;color:#ffe08a}
+  .touch .meldung{top:calc(112px + env(safe-area-inset-top,0px))}
 </style>
 </head>
 <body>
@@ -323,6 +339,7 @@
   <div class="strecke" id="strecke">0,0 km</div>
   <div class="knapp" id="knapp">Knapp!</div>
   <div class="tipp" id="tipp">Weiche aus – je knapper, desto mehr Punkte</div>
+  <div class="meldung" id="meldung" aria-live="polite"></div>
   <div class="tacho">
     <svg viewBox="0 0 170 170" aria-hidden="true">
       <path d="M 30 140 A 70 70 0 1 1 140 140" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="9" stroke-linecap="round"/>
@@ -370,6 +387,7 @@
     <div class="zeile"><span>Wetter</span><div class="wahl" id="wetterWahl">
       <button data-wert="klar" aria-pressed="true">Klar</button>
       <button data-wert="regen" aria-pressed="false">Regen +25 %</button>
+      <button data-wert="nebel" aria-pressed="false">Nebel +35 %</button>
     </div></div>
     <div class="zeile"><span>Grafik</span><div class="wahl" id="grafikWahl">
       <button data-wert="hoch" aria-pressed="true">Hoch</button>
@@ -389,7 +407,11 @@
     <div class="steuerung nur-touch" id="touchHilfe"></div>
     <div class="hochkant">Quer gehalten siehst du mehr von der Straße.</div>
     <button class="knopf" id="start">Losfahren</button>
-    <button class="knopf zweit" id="garageOeffnen">Garage</button>
+    <div class="reihe">
+      <button class="knopf zweit tages-knopf" id="tagesfahrt">Tagesfahrt<small id="tagesInfo">Heute für alle gleich</small></button>
+      <button class="knopf zweit tages-knopf" id="auftraegeOeffnen">Aufträge<small id="auftraegeStand">0 von 3</small></button>
+      <button class="knopf zweit" id="garageOeffnen">Garage</button>
+    </div>
     <div class="knopf-reihe nur-online">
       <button class="knopf zweit" id="rennenOeffnen">Online-Rennen</button>
       <button class="knopf zweit" id="listeOeffnen">Bestenliste</button>
@@ -406,14 +428,26 @@
     <div class="zeile"><span>Strecke</span><b id="endeStrecke">0 km</b></div>
     <div class="zeile"><span>Schwierigkeit</span><b id="endeStufe">Normal</b></div>
     <div class="zeile"><span>Knappe Manöver</span><b id="endeKnapp">0</b></div>
-    <div class="zeile"><span>Rekord auf dieser Stufe</span><b id="endeRekord">0</b></div>
+    <div class="zeile"><span id="endeRekordText">Rekord auf dieser Stufe</span><b id="endeRekord">0</b></div>
     <div class="zeile"><span>Münzen <small id="endeMuenzDetail" style="font-weight:600;opacity:.75"></small></span><b class="konto"><i class="muenze"></i><span id="endeMuenzen">+0</span></b></div>
+    <div class="zeile" id="endeAuftragZeile" hidden><span>Aufträge erfüllt</span><b class="konto"><i class="muenze"></i><span id="endeAuftrag">+0</span></b></div>
     <div class="zeile" id="endeWeltZeile" hidden><span>Bestenliste</span><b id="endeWelt">…</b></div>
     <div class="rennen-warten" id="endeRennen" hidden></div>
     <div style="height:18px"></div>
     <button class="knopf" id="nochmal">Nochmal fahren</button>
     <button class="knopf zweit" id="garageVonEnde">Garage</button>
     <button class="knopf zweit nur-online" id="listeVonEnde">Bestenliste</button>
+    <button class="knopf zweit" id="zumMenue" hidden>Hauptmenü</button>
+  </div>
+</div>
+
+<div class="ebene aus" id="auftraegeEbene">
+  <div class="schild liste-schild" role="dialog" aria-labelledby="auftraegeTitel">
+    <h1 id="auftraegeTitel">Aufträge</h1>
+    <div class="unter" style="font-size:17px">Jeden Tag drei neue. Schaffst du einen in einer Fahrt, gibt es die Münzen sofort.</div>
+    <div class="liste" id="auftraegeListe"></div>
+    <div class="hinweis" id="auftraegeHinweis"></div>
+    <button class="knopf" id="auftraegeZurueck">Zurück</button>
   </div>
 </div>
 
@@ -435,6 +469,7 @@
       <button role="tab" data-stufe="leicht" aria-selected="false">Leicht</button>
       <button role="tab" data-stufe="normal" aria-selected="true">Normal</button>
       <button role="tab" data-stufe="schwer" aria-selected="false">Schwer</button>
+      <button role="tab" data-stufe="tag" aria-selected="false">Heute</button>
     </div>
     <div class="liste" id="listeInhalt"></div>
     <div class="hinweis" id="listeIch"></div>
@@ -514,6 +549,21 @@ const speicher = {
   schreib(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 
+/* ---------- Kalendertag & Zufall ---------- */
+// Der Kalendertag in Deutschland entscheidet über Tagesfahrt und Aufträge – auf allen Geräten gleich.
+function tagHeute(){
+  try { return new Intl.DateTimeFormat('sv-SE', { timeZone:'Europe/Berlin' }).format(new Date()); }
+  catch (e) { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+}
+function samen(text){ let h = 2166136261; for (let i = 0; i < text.length; i++){ h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+// kleine, schnelle Zufallsfolge (mulberry32): gleicher Samen, gleiche Zahlen
+function zufallsfolge(s){
+  let a = s >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+// eigene Folge für ein Teilereignis, damit eine Welle immer gleich viele Zahlen aus dem Hauptstrom verbraucht
+const ableiten = r => zufallsfolge(r()*4294967296);
+
 /* ---------- Konstanten ---------- */
 const SPUREN = [-3.75, 0, 3.75];
 const GEGEN_SPUREN = [-11, -14.75, -18.5];
@@ -575,7 +625,9 @@ const Q = IST_MOBIL
 let grafik = speicher.lies('bs_grafik', IST_MOBIL ? 'mittel' : 'hoch');
 if (!['hoch','mittel','schnell'].includes(grafik)) grafik = 'mittel';
 let wetter = speicher.lies('bs_wetter', 'klar');
-if (!['klar','regen'].includes(wetter)) wetter = 'klar';
+if (!['klar','regen','nebel'].includes(wetter)) wetter = 'klar';
+const WETTER = { klar:{ name:'Klar', bonus:1 }, regen:{ name:'Regen', bonus:1.25 }, nebel:{ name:'Nebel', bonus:1.35 } };
+let modus = 'frei';   // frei | tag (Tagesfahrt)
 {
   const basis = Q.dprMax;
   Q.dprBasis = basis;
@@ -1165,7 +1217,7 @@ function unterlichtAnwenden(){
 }
 function spielerModellBauen(){
   if (spielerModell){ spieler.remove(spielerModell); }
-  const auto = AUTOS[aktuell('auto')] || AUTOS.kestrel;
+  const auto = modus === 'tag' ? AUTOS.kestrel : AUTOS[aktuell('auto')] || AUTOS.kestrel;
   const t = TYPEN[auto.typ];
   const m = baueAuto(auto.typ, 0xffffff, true);
   const info = m.userData, paint = info.lack, rz = t.l/2;
@@ -1220,23 +1272,24 @@ function regenAktualisieren(dt){
   }
 }
 function wetterAnwenden(){
-  const r = wetter === 'regen';
-  NASS = r ? 1 : 0.55;
+  const r = wetter === 'regen', n = wetter === 'nebel';
+  NASS = r ? 1 : n ? 0.75 : 0.55;
   spiegelMats.forEach(m => m.opacity = m.userData.basis*NASS);
-  const nebel = r ? 0x1c1f2d : NEBEL;
+  // Nebel: dichte, helle Suppe – Rücklichter tauchen erst spät auf, die Scheinwerferkegel stehen im Dunst
+  const nebel = r ? 0x1c1f2d : n ? 0x343847 : NEBEL;
   szene.fog.color.setHex(nebel); szene.background.setHex(nebel);
-  szene.fog.near = r ? 16 : 45; szene.fog.far = r ? 330 : SICHT;
+  szene.fog.near = r ? 16 : n ? 4 : 45; szene.fog.far = r ? 330 : n ? 170 : SICHT;
   himmelMat.uniforms.horizont.value.setHex(nebel);
-  himmelMat.uniforms.mitte.value.setHex(r ? 0x10131e : 0x0e1234);
-  himmelMat.uniforms.oben.value.setHex(r ? 0x06070c : 0x03040d);
-  himmelMat.uniforms.glut.value.setHex(r ? 0x2b1b22 : 0xb4533c);
-  himmelDeko.forEach(o => o.visible = !r);
-  fernDeko.forEach(m => m.opacity = r ? 0.3 : 1);
+  himmelMat.uniforms.mitte.value.setHex(r ? 0x10131e : n ? 0x262a37 : 0x0e1234);
+  himmelMat.uniforms.oben.value.setHex(r ? 0x06070c : n ? 0x151821 : 0x03040d);
+  himmelMat.uniforms.glut.value.setHex(r ? 0x2b1b22 : n ? 0x302a30 : 0xb4533c);
+  himmelDeko.forEach(o => o.visible = !r && !n);
+  fernDeko.forEach(m => m.opacity = r ? 0.3 : n ? 0 : 1);
   regen.visible = r;
-  strasse.material.roughness = r ? 0.32 : 0.6;
-  strasse.material.envMapIntensity = r ? 0.7 : 0.25;
-  kegelMat.opacity = r ? 0.11 : 0.05;
-  strahlMat.opacity = r ? 0.07 : 0.018;
+  strasse.material.roughness = r ? 0.32 : n ? 0.5 : 0.6;
+  strasse.material.envMapIntensity = r ? 0.7 : n ? 0.35 : 0.25;
+  kegelMat.opacity = r ? 0.11 : n ? 0.15 : 0.05;
+  strahlMat.opacity = r ? 0.07 : n ? 0.12 : 0.018;
   klang.regenSetzen(r);
   spielerModellBauen();
 }
@@ -1252,19 +1305,21 @@ for (let i = 0; i < 40; i++){
   g.visible = false; szene.add(g); muenzPool.push(g);
 }
 function muenzeSetzen(x, z){
+  if (gesperrt(x > 1.9 ? 2 : x < -1.9 ? 0 : 1, z, 20)) return;
   const g = muenzPool.find(m => !m.visible); if (!g) return;
   g.visible = true; g.position.set(x, 0.75, z); g.rotation.y = Math.random()*6;
   muenzenAktiv.push(g);
 }
 function muenzenLeeren(){ muenzenAktiv.forEach(g => g.visible = false); muenzenAktiv.length = 0; }
 function muenzReiheSpawnen(){
+  const r = ableiten(zufall.muenzen);
   const z0 = SPAWN_Z + 40;
-  const a = Math.random()*3|0;
-  if (Math.random() < 0.55){
-    const n = 5 + (Math.random()*4|0);
+  const a = r()*3|0;
+  if (r() < 0.55){
+    const n = 5 + (r()*4|0);
     for (let k = 0; k < n; k++) muenzeSetzen(SPUREN[a], z0 - k*7);
   } else {
-    const b = a === 1 ? (Math.random() < 0.5 ? 0 : 2) : 1;
+    const b = a === 1 ? (r() < 0.5 ? 0 : 2) : 1;
     const n = 9;
     for (let k = 0; k < n; k++){ const p = k/(n - 1), s2 = p*p*(3 - 2*p); muenzeSetzen(SPUREN[a] + (SPUREN[b] - SPUREN[a])*s2, z0 - k*6.5); }
   }
@@ -1285,6 +1340,133 @@ const gegenverkehr = [];
     a.userData.v = (100 + Math.random()*60)/3.6;
     a.position.set(GEGEN_SPUREN[Math.random()*3|0], 0, -SICHT - Math.random()*700);
     szene.add(a); gegenverkehr.push(a);
+  }
+}
+
+/* ---------- Baustellen ----------
+   Eine Außenspur ist gesperrt: vorn eine fahrbare Absperrtafel mit Blinklichtern, dann ein Keil aus Leitbaken
+   mit Lauflicht und eine lange Bakenreihe. Wer die Baken streift, kracht (oder verbraucht einen Airbag).
+   Wer ohne Kratzer durchkommt, bekommt einen Bonus. Koordinaten der Gruppe: z = 0 ist die Tafel, nach hinten negativ. */
+const BAU_KEIL = 45, BAU_LAENGE = 240, BAU_ENDE = BAU_KEIL + BAU_LAENGE;
+const BAU_AUSSEN = 2.45, BAU_INNEN = 1.9;   // Abstand der Bakenreihe von der Fahrbahnmitte am Keilanfang und dahinter
+const bauGrenze = lz => BAU_AUSSEN - (BAU_AUSSEN - BAU_INNEN)*Math.min(1, Math.max(0, -lz/BAU_KEIL));
+const baustelle = { aktiv:false, z:0, spur:2, gruppe:null, gruppen:{}, durch:false, kratzer:false, gemeldet:false };
+let naechsteBaustelle = Infinity;
+{
+  const bakeTex = canvasTex(64, 256, (x, w, h) => {
+    x.fillStyle = '#f4f4f0'; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#d0141e';
+    for (let i = -3; i < 8; i++){ x.beginPath(); x.moveTo(0, i*48); x.lineTo(w, i*48 - 40); x.lineTo(w, i*48 - 16); x.lineTo(0, i*48 + 24); x.fill(); }
+    x.strokeStyle = '#d0141e'; x.lineWidth = 6; x.strokeRect(3, 3, w - 6, h - 6);
+  });
+  const bakeMat = new THREE.MeshBasicMaterial({ map:bakeTex, color:0xd8d8d8 });
+  const fussMat = new THREE.MeshStandardMaterial({ color:0x111214, roughness:0.8 });
+  const bakeGeo = new THREE.BoxGeometry(0.26, 1.0, 0.06);
+  const fussGeo = new THREE.BoxGeometry(0.5, 0.14, 0.5);
+  const tafelTex = seite => canvasTex(256, 192, (x, w, h) => {
+    // rot-weiße Schraffur mit blauem Gebotszeichen „hier vorbei“
+    x.fillStyle = '#f4f4f0'; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#d0141e';
+    for (let i = -4; i < 12; i++){ x.beginPath(); x.moveTo(i*40, h); x.lineTo(i*40 + 20, h); x.lineTo(i*40 + 20 + h*0.6, 0); x.lineTo(i*40 + h*0.6, 0); x.fill(); }
+    x.fillStyle = '#1553a8'; x.beginPath(); x.arc(w/2, h/2, 62, 0, Math.PI*2); x.fill();
+    x.strokeStyle = '#f4f4f0'; x.lineWidth = 7; x.stroke();
+    x.save(); x.translate(w/2, h/2); x.rotate(seite*Math.PI*0.75); x.fillStyle = '#f4f4f0';
+    x.fillRect(-9, -8, 18, 44); x.beginPath(); x.moveTo(0, -42); x.lineTo(-26, -6); x.lineTo(26, -6); x.fill(); x.restore();
+  });
+  const anhaengerMat = new THREE.MeshStandardMaterial({ color:0xe8c11a, roughness:0.6 });
+  [0, 2].forEach(spur => {
+    const sg = spur === 2 ? 1 : -1;
+    const g = new THREE.Group(); g.visible = false; szene.add(g);
+    const lauf = [], blink = [];
+    const bake = (x, z, lampe) => {
+      const b = new THREE.Mesh(bakeGeo, bakeMat); b.position.set(x, 0.66, z); g.add(b);
+      const f = new THREE.Mesh(fussGeo, fussMat); f.position.set(x, 0.07, z); g.add(f);
+      if (lampe){ const l = leuchten(0xffb21a, 1.3, 0); l.position.set(x, 1.32, z); g.add(l); lauf.push(l); }
+    };
+    // Keil mit Lauflicht, danach die lange Reihe
+    for (let z = -3; z >= -BAU_KEIL; z -= 5) bake(sg*bauGrenze(z), z, true);
+    for (let z = -BAU_KEIL - 9; z >= -BAU_ENDE; z -= 9) bake(sg*BAU_INNEN, z, false);
+    // Ende der Baustelle: Baken schwenken zurück an den Rand
+    for (let k = 1; k <= 4; k++) bake(sg*(BAU_INNEN + k*0.8), -BAU_ENDE - k*5, false);
+    // fahrbare Absperrtafel in der gesperrten Spur
+    const x0 = SPUREN[spur];
+    const tafel = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.8), new THREE.MeshBasicMaterial({ map:tafelTex(-sg), color:0xe0e0e0 }));
+    tafel.position.set(x0, 1.75, 0.05); g.add(tafel);
+    const kasten = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.9, 3.2), anhaengerMat); kasten.position.set(x0, 0.55, -1.6); g.add(kasten);
+    const rahmen = new THREE.Mesh(new THREE.BoxGeometry(2.55, 1.95, 0.08), fussMat); rahmen.position.set(x0, 1.75, 0); g.add(rahmen);
+    [-1.05, 1.05].forEach(dx => { const r = new THREE.Mesh(typGeo('sport').rad, reifenMat); r.position.set(x0 + dx, 0.35, -1.6); g.add(r); });
+    [[-1.05, 2.82], [-0.52, 2.82], [0, 2.82], [0.52, 2.82], [1.05, 2.82]].forEach(([dx, y]) => { const l = leuchten(0xffb21a, 1.8, 0); l.position.set(x0 + dx, y, 0.15); g.add(l); blink.push(l); });
+    baustelle.gruppen[spur] = { g, lauf, blink };
+  });
+}
+// liegt Spur `spur` an der Stelle z (mit Vorlauf davor) in einer Baustelle?
+function gesperrt(spur, z, vorlauf = 0){
+  return baustelle.aktiv && spur === baustelle.spur && z < baustelle.z + vorlauf && z > baustelle.z - BAU_ENDE - 15;
+}
+function baustelleBeenden(){
+  baustelle.aktiv = false;
+  Object.values(baustelle.gruppen).forEach(b => b.g.visible = false);
+}
+function baustelleStarten(){
+  const r = ableiten(zufall.baustelle);
+  baustelle.spur = r() < 0.6 ? 2 : 0;
+  baustelle.z = -560; baustelle.aktiv = true;
+  baustelle.durch = false; baustelle.kratzer = false; baustelle.gemeldet = false;
+  baustelle.gruppe = baustelle.gruppen[baustelle.spur].g;
+  baustelle.gruppe.visible = true; baustelle.gruppe.position.z = baustelle.z;
+  // Autos, die schon in der gesperrten Spur hinter der Tafel stünden, gibt es nicht (sie sind noch im Dunst)
+  for (let i = verkehr.length - 1; i >= 0; i--){ const a = verkehr[i]; if (a.userData.spur === baustelle.spur && a.position.z < baustelle.z + 20) entferneAuto(i); }
+}
+function baustelleRammen(grenze){
+  const sg = baustelle.spur === 2 ? 1 : -1;
+  baustelle.kratzer = true;
+  if (schutzLadungen > 0){
+    // Airbag: zurück auf die freie Spur schieben
+    schutzLadungen--; schutzAnzeigen();
+    unverwundbar = 1.8;
+    spielerX = sg*(grenze - spielerB/2 - 0.35); spielerVX = -sg*6;
+    wackeln = 0.9; randRot = 0.6;
+    funkenSpruehen(spielerX + sg*spielerB/2, 0.6, -1, 1, 90);
+    klang.airbag(); knappZeigen('Airbag!');
+    combo = 1; comboZeit = 0;
+  } else crash({ position:{ x:sg*(grenze + 1) }, userData:{ v:0 } });
+}
+function baustelleAktualisieren(dt){
+  if (!baustelle.aktiv){
+    if (zustand === 'fahrt' && distanz >= naechsteBaustelle) baustelleStarten();
+    return;
+  }
+  baustelle.z += tempo*dt;
+  baustelle.gruppe.position.z = baustelle.z;
+  const b = baustelle.gruppen[baustelle.spur], t = performance.now()/1000;
+  const schritt = Math.floor(t*9) % (b.lauf.length + 3);
+  b.lauf.forEach((l, i) => l.material.opacity = i === schritt ? 1 : 0);
+  const an = Math.floor(t*2.4) % 2 === 0;
+  b.blink.forEach(l => l.material.opacity = an ? 1 : 0.08);
+  const lz = -baustelle.z;   // Position des Spielers in der Baustelle
+  if (zustand === 'fahrt'){
+    if (!baustelle.gemeldet && baustelle.z > -300){
+      baustelle.gemeldet = true;
+      meldung(`Baustelle: ${baustelle.spur === 2 ? 'rechte' : 'linke'} Spur gesperrt`, 3.5, true);
+    }
+    if (unverwundbar <= 0 && lz < spielerL/2 && lz > -BAU_ENDE - spielerL/2){
+      const sg = baustelle.spur === 2 ? 1 : -1, grenze = bauGrenze(lz);
+      if (sg*spielerX + spielerB/2 > grenze + 0.08) baustelleRammen(grenze);
+    }
+    if (!baustelle.durch && lz < -BAU_ENDE - spielerL){
+      baustelle.durch = true;
+      if (!baustelle.kratzer){
+        lauf.baustellen++;
+        const bonus = Math.round(400*S.faktor*fahrzeug().punkte);
+        punkte += bonus;
+        knappZeigen('Baustelle geschafft  +' + bonus);
+        klang.knapp();
+      }
+    }
+  }
+  if (baustelle.z > BAU_ENDE + 40){
+    baustelleBeenden();
+    naechsteBaustelle = distanz + 2000 + ableiten(zufall.baustelle)()*2000;
   }
 }
 
@@ -1441,6 +1623,14 @@ if (speicher.lies('bs_rekord_normal', null) === null && speicher.lies('bs_rekord
 let rekord = speicher.lies('bs_rekord_' + stufe, 0);
 let laufMuenzen = 0, nitro = 0, nitroZeit = 0, schutzLadungen = 0, unverwundbar = 0, naechsteMuenzen = 0;
 const verkehr = [];
+// Zufallsquellen für Verkehr, Münzen und Baustellen. In der Tagesfahrt feste Folgen aus dem Datum.
+const zufall = { welle:Math.random, muenzen:Math.random, baustelle:Math.random };
+const SERIE = { lenkung:0, magnet:0, nitro:0, airbag:0, muenzwert:0 };
+// In der Tagesfahrt fahren alle mit dem Kestrel GT ohne Tuning
+const tuning = () => modus === 'tag' ? SERIE : stand.upgrades;
+const fahrzeug = () => modus === 'tag' ? AUTOS.kestrel : AUTOS[stand.auto] || AUTOS.kestrel;
+// Kennzahlen der laufenden Fahrt (für Aufträge)
+let lauf = { knapp:0, km:0, combo:1, muenzen:0, baustellen:0, tempo:0, tempoMax:0, punkte:0, tagesfahrt:0 };
 const eingabe = { links:false, rechts:false, gas:false, bremse:false };
 const touchPunkte = new Map();
 
@@ -1450,44 +1640,49 @@ function spurFrei(spur, z, abstand){
   const x = SPUREN[spur];
   return !verkehr.some(a => (Math.abs(a.position.x - x) < 2.2 || a.userData.zielSpur === spur) && Math.abs(a.position.z - z) < abstand + a.userData.l/2);
 }
-function schwierigkeit(){ return Math.min(1, zeit / S.rampe); }
+// Die Tagesfahrt steigert sich über die Strecke statt über die Zeit, damit alle denselben Verkehr bekommen
+function schwierigkeit(){ return Math.min(1, modus === 'tag' ? (distanz - startDistanz)/9500 : zeit / S.rampe); }
+// Wartezeit bis zum nächsten Spurwechselversuch (gleich verteilt wie früher die Würfel pro Bild, aber unabhängig von der Bildrate)
+function wechselZeit(r){ const d = schwierigkeit(); return -Math.log(1 - r()*0.999)/(S.wechsel[0] + d*(S.wechsel[1] - S.wechsel[0])); }
 
 function spawneWelle(nurRand){
+  const r = ableiten(zufall.welle);
   const d = schwierigkeit();
   const z = SPAWN_Z;
   const kandidaten = nurRand ? [0, 2] : [0, 1, 2];
   // Spuren, die bei der Spawnzone schon belegt sind
   const belegt = new Set();
   verkehr.forEach(a => { if (Math.abs(a.position.z - z) < 38) belegt.add(a.userData.spur); });
-  let anzahl = Math.random() < S.zweier[0] + d*(S.zweier[1] - S.zweier[0]) ? 2 : 1;
-  const mischung = kandidaten.slice().sort(() => Math.random() - 0.5);
+  let anzahl = r() < S.zweier[0] + d*(S.zweier[1] - S.zweier[0]) ? 2 : 1;
+  const mischung = kandidaten.map(sp => [r(), sp]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
   for (const spur of mischung){
     if (anzahl <= 0) break;
     if (belegt.size >= 2 && !belegt.has(spur)) continue;
-    if (!spurFrei(spur, z, 32)) continue;
-    erzeugeAuto(spur, z - Math.random()*20);
+    if (!spurFrei(spur, z, 32) || gesperrt(spur, z, 150)) continue;
+    erzeugeAuto(spur, z - r()*20, ableiten(r));
     belegt.add(spur); anzahl--;
   }
 }
-function erzeugeAuto(spur, z){
+function erzeugeAuto(spur, z, zz = Math.random){
   let typ, vKmh;
-  const r = Math.random();
+  const r = zz();
   if (spur === 2){
-    if (r < 0.34){ typ = 'lkw'; vKmh = 78 + Math.random()*8; }
-    else if (r < 0.5){ typ = 'transporter'; vKmh = 90 + Math.random()*12; }
-    else { typ = ['limo','kombi','suv'][Math.random()*3|0]; vKmh = 92 + Math.random()*15; }
+    if (r < 0.34){ typ = 'lkw'; vKmh = 78 + zz()*8; }
+    else if (r < 0.5){ typ = 'transporter'; vKmh = 90 + zz()*12; }
+    else { typ = ['limo','kombi','suv'][zz()*3|0]; vKmh = 92 + zz()*15; }
   } else if (spur === 1){
-    if (r < 0.12){ typ = 'transporter'; vKmh = 100 + Math.random()*12; }
-    else if (r < 0.2){ typ = 'lkw'; vKmh = 86 + Math.random()*4; }
-    else { typ = ['limo','kombi','suv'][Math.random()*3|0]; vKmh = 102 + Math.random()*20; }
+    if (r < 0.12){ typ = 'transporter'; vKmh = 100 + zz()*12; }
+    else if (r < 0.2){ typ = 'lkw'; vKmh = 86 + zz()*4; }
+    else { typ = ['limo','kombi','suv'][zz()*3|0]; vKmh = 102 + zz()*20; }
   } else {
-    typ = ['limo','kombi','suv','limo'][Math.random()*4|0]; vKmh = 112 + Math.random()*22;
+    typ = ['limo','kombi','suv','limo'][zz()*4|0]; vKmh = 112 + zz()*22;
   }
   vKmh = Math.min(vKmh, kmh - 30);
-  const farbe = PKW_FARBEN[Math.random()*PKW_FARBEN.length|0];
+  const farbe = PKW_FARBEN[zz()*PKW_FARBEN.length|0];
   const a = baueAuto(typ, farbe);
   a.position.set(SPUREN[spur], 0, z);
-  Object.assign(a.userData, { spur, zielSpur:null, basisV:vKmh/3.6, v:vKmh/3.6, bremst:false, wechsel:null, passiert:false, knapp:false });
+  const rng = ableiten(zz);
+  Object.assign(a.userData, { spur, zielSpur:null, basisV:vKmh/3.6, v:vKmh/3.6, bremst:false, wechsel:null, passiert:false, knapp:false, rng, wechselT:wechselZeit(rng) });
   szene.add(a); verkehr.push(a);
 }
 function entferneAuto(i){
@@ -1508,8 +1703,9 @@ addEventListener('keydown', e => {
   if ((e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyN') && !e.repeat && zustand === 'fahrt'){ e.preventDefault(); nitroZuenden(); }
   if (e.code === 'Escape' && zustand === 'garage'){ garageSchliessen(); return; }
   if (e.code === 'Escape' && online.overlayOffen()){ online.overlaySchliessen(); return; }
+  if (e.code === 'Escape' && auftraegeOffen()){ auftraegeSchliessen(); return; }
   if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat){
-    if ((zustand === 'menue' || zustand === 'ende') && !online.overlayOffen() && !online.imRennen() && !(e.target && e.target.closest && e.target.closest('button'))){ e.preventDefault(); starten(); }
+    if ((zustand === 'menue' || zustand === 'ende') && !online.overlayOffen() && !auftraegeOffen() && !online.imRennen() && !(e.target && e.target.closest && e.target.closest('button'))){ e.preventDefault(); starten(); }
     else if (zustand === 'pause'){ e.preventDefault(); fortsetzen(); }
   }
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat){
@@ -1727,7 +1923,7 @@ function spielerZuruecksetzen(){
 }
 function garageOeffnen(){
   klang.init();
-  if (zustand === 'ende') spielerZuruecksetzen();
+  if (zustand === 'ende'){ spielerZuruecksetzen(); modusSetzen('frei'); }
   zustand = 'garage';
   zeige('menue', false); zeige('ende', false); zeige('garage', true);
   garageZeichnen();
@@ -1737,7 +1933,7 @@ function garageSchliessen(){
   spielerModellBauen();
   zustand = 'menue';
   zeige('garage', false); zeige('menue', true);
-  kontoAnzeigen();
+  kontoAnzeigen(); auftraegeAnzeigen(); tagesInfoAnzeigen();
   if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50);
 }
 $('garageOeffnen').addEventListener('click', garageOeffnen);
@@ -1747,8 +1943,8 @@ kontoAnzeigen();
 
 /* ---------- Nitro ---------- */
 function nitroZuenden(){
-  if (zustand !== 'fahrt' || !stand.upgrades.nitro || nitro < 1 || nitroZeit > 0) return;
-  nitro = 0; nitroZeit = 2.5 + stand.upgrades.nitro*0.7;
+  if (zustand !== 'fahrt' || !tuning().nitro || nitro < 1 || nitroZeit > 0) return;
+  nitro = 0; nitroZeit = 2.5 + tuning().nitro*0.7;
   wackeln = Math.max(wackeln, 0.35); klang.nitro();
   knappZeigen('Nitro!');
 }
@@ -1772,7 +1968,7 @@ function airbagAusloesen(a){
 function tonUmschalten(){ klang.schalten(!klang.an); $('ton').textContent = klang.an ? '🔊' : '🔇'; }
 $('ton').textContent = klang.an ? '🔊' : '🔇';
 const fmt = n => Math.floor(n).toLocaleString('de-DE');
-function rekordAnzeigen(){ $('rekordMenue').textContent = fmt(rekord); $('rekordHud').textContent = fmt(rekord); $('stufeHud').textContent = S.name; }
+function rekordAnzeigen(){ $('rekordMenue').textContent = fmt(rekord); $('rekordHud').textContent = fmt(rekord); $('stufeHud').textContent = modus === 'tag' ? 'Tagesfahrt' : S.name; }
 function stufeSetzen(neu){
   stufe = neu; S = STUFEN[neu]; speicher.schreib('bs_stufe', neu);
   rekord = speicher.lies('bs_rekord_' + neu, 0);
@@ -1783,6 +1979,110 @@ function stufeSetzen(neu){
 $('stufenWahl').addEventListener('click', e => { const b = e.target.closest('button'); if (b) stufeSetzen(b.dataset.stufe); });
 stufeSetzen(stufe);
 rekordAnzeigen();
+
+/* ---------- Tagesfahrt ----------
+   Jeden Tag fahren alle dieselbe Strecke: gleiche Verkehrswellen, Münzreihen, Baustellen und gleiches Wetter,
+   auf Normal mit dem Kestrel GT ohne Tuning. Gewertet wird in einer eigenen Tagesbestenliste. */
+let tag = tagHeute(), freiStufe = stufe, freiWetter = wetter;
+const tagesWetter = t => ['klar', 'klar', 'regen', 'nebel'][samen(t + ':wetter') % 4];
+function tagesRekord(){ const r = speicher.lies('bs_tagesrekord', null); return r && r.tag === tag ? r.punkte : 0; }
+function tagesInfoAnzeigen(){
+  const t = tagHeute(), w = WETTER[tagesWetter(t)];
+  const [j, m, d] = t.split('-').map(Number);
+  $('tagesInfo').textContent = `${d}.${m}. · ${w.name}${w.bonus > 1 ? ' +' + Math.round((w.bonus - 1)*100) + ' %' : ''}`;
+}
+function modusSetzen(neu){
+  if (neu === 'tag'){
+    if (modus !== 'tag'){ freiStufe = stufe; freiWetter = wetter; }
+    modus = 'tag'; tag = tagHeute();
+    stufe = 'normal'; S = STUFEN.normal;
+    wetter = tagesWetter(tag);
+    rekord = tagesRekord();
+  } else {
+    if (modus !== 'tag') return;
+    modus = 'frei'; wetter = freiWetter;
+    stufeSetzen(freiStufe);
+    tagesInfoAnzeigen();
+  }
+  rekordAnzeigen();
+  wetterAnwenden();
+}
+function zufallSetzen(){
+  if (modus === 'tag'){
+    zufall.welle = zufallsfolge(samen(tag + ':verkehr'));
+    zufall.muenzen = zufallsfolge(samen(tag + ':muenzen'));
+    zufall.baustelle = zufallsfolge(samen(tag + ':baustellen'));
+  } else zufall.welle = zufall.muenzen = zufall.baustelle = Math.random;
+}
+tagesInfoAnzeigen();
+$('tagesfahrt').addEventListener('click', () => { modusSetzen('tag'); starten(); });
+$('zumMenue').addEventListener('click', () => {
+  spielerZuruecksetzen(); zustand = 'menue';
+  modusSetzen('frei');
+  zeige('ende', false); zeige('menue', true); auftraegeAnzeigen();
+  if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50);
+});
+
+/* ---------- Aufträge ----------
+   Jeden Tag drei Aufträge, für alle gleich. Erfüllt man einen in einer Fahrt, gibt es die Münzen sofort. */
+const AUFTRAG_ARTEN = [
+  { id:'knapp', werte:[8, 15, 25], lohn:[120, 220, 350], text:n => `${n} knappe Manöver in einer Fahrt`, wert:l => l.knapp },
+  { id:'strecke', werte:[3, 5, 8], lohn:[120, 200, 320], text:n => `${n} km in einer Fahrt`, wert:l => l.km },
+  { id:'combo', werte:[3, 5, 7], lohn:[120, 220, 380], text:n => `Combo ×${n} erreichen`, wert:l => l.combo },
+  { id:'muenzen', werte:[20, 35, 55], lohn:[100, 180, 300], text:n => `${n} Münzen in einer Fahrt einsammeln`, wert:l => l.muenzen },
+  { id:'baustelle', werte:[1, 2, 3], lohn:[120, 240, 380], text:n => n === 1 ? 'Eine Baustelle ohne Kratzer durchfahren' : `${n} Baustellen ohne Kratzer in einer Fahrt`, wert:l => l.baustellen },
+  { id:'tempo', werte:[5, 10, 20], lohn:[120, 220, 360], text:n => `${n} Sekunden am Stück über 250 km/h`, wert:l => l.tempoMax },
+  { id:'punkte', werte:[4000, 9000, 18000], lohn:[120, 220, 380], text:n => `${fmt(n)} Punkte in einer Fahrt`, wert:l => l.punkte },
+  { id:'tagesfahrt', werte:[1], lohn:[150], text:() => 'Die Tagesfahrt fahren', wert:l => l.tagesfahrt }
+];
+let auftragTakt = 0, laufAuftragLohn = 0;
+function auftraegeHeute(){
+  const t = tagHeute(), r = zufallsfolge(samen(t + ':auftraege'));
+  const arten = AUFTRAG_ARTEN.map(a => [r(), a]).sort((a, b) => a[0] - b[0]).slice(0, 3).map(x => x[1]);
+  const liste = arten.map(a => { const i = r()*a.werte.length|0; return { art:a, ziel:a.werte[i], lohn:a.lohn[i], text:a.text(a.werte[i]) }; });
+  let st = speicher.lies('bs_auftraege', null);
+  if (!st || st.tag !== t || !Array.isArray(st.erledigt)) st = { tag:t, erledigt:[false, false, false] };
+  return { tag:t, liste, st };
+}
+function auftraegePruefen(){
+  const a = auftraegeHeute();
+  a.liste.forEach((x, i) => {
+    if (a.st.erledigt[i] || x.art.wert(lauf) < x.ziel) return;
+    a.st.erledigt[i] = true; speicher.schreib('bs_auftraege', a.st);
+    stand.muenzen += x.lohn; speichern(); kontoAnzeigen();
+    laufAuftragLohn += x.lohn;
+    meldung(`Auftrag erfüllt: ${x.text}  +${x.lohn} Münzen`, 3.5);
+    klang.kaufen();
+  });
+}
+function auftraegeAnzeigen(){
+  const a = auftraegeHeute(), n = a.st.erledigt.filter(Boolean).length;
+  $('auftraegeStand').textContent = n === 3 ? 'alle erfüllt ✓' : `${n} von 3 erfüllt`;
+  const box = $('auftraegeListe'); box.replaceChildren();
+  a.liste.forEach((x, i) => {
+    const fertig = a.st.erledigt[i];
+    const z = document.createElement('div'); z.className = 'auftrag' + (fertig ? ' fertig' : '');
+    const haken = document.createElement('span'); haken.className = 'haken'; haken.textContent = fertig ? '✓' : '';
+    const text = document.createElement('div'); text.className = 'text'; text.textContent = x.text;
+    const klein = document.createElement('small'); klein.textContent = fertig ? 'erfüllt' : 'in einer Fahrt schaffen'; text.append(klein);
+    const lohn = document.createElement('b'); lohn.innerHTML = '<i class="muenze"></i>'; lohn.append('+' + x.lohn);
+    z.append(haken, text, lohn); box.append(z);
+  });
+  $('auftraegeHinweis').textContent = n === 3 ? 'Alles erledigt! Morgen gibt es neue Aufträge.' : 'Die Aufträge gelten für alle Stufen, die Tagesfahrt und Online-Rennen.';
+}
+const auftraegeOffen = () => !$('auftraegeEbene').classList.contains('aus');
+function auftraegeOeffnen(){ auftraegeAnzeigen(); zeige('menue', false); zeige('auftraegeEbene', true); setTimeout(() => $('auftraegeZurueck').focus(), 60); }
+function auftraegeSchliessen(){ zeige('auftraegeEbene', false); zeige('menue', true); auftraegeAnzeigen(); if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50); }
+$('auftraegeOeffnen').addEventListener('click', auftraegeOeffnen);
+$('auftraegeZurueck').addEventListener('click', auftraegeSchliessen);
+auftraegeAnzeigen();
+
+/* ---------- HUD-Meldung ---------- */
+let meldungZeit = 0;
+function meldung(text, sek = 3, warnung = false){
+  const m = $('meldung'); m.textContent = text; m.classList.toggle('warnung', warnung); m.classList.add('an');
+  meldungZeit = sek; hudCache.meldung = true;
+}
 
 function zeige(id, an){ $(id).classList.toggle('aus', !an); }
 
@@ -1832,23 +2132,30 @@ function starten(){
   if (steuerModus === 'neigen' && IST_TOUCH){ neigungErlauben(); neigung.neutral = neigung.aktiv ? neigung.roh : null; }
   wachHalten(true);
   touchPunkte.clear(); stickFinger = null;
-  for (let i = verkehr.length - 1; i >= 0; i--) if (verkehr[i].position.z > -170 || zustand === 'ende') entferneAuto(i);
+  if (modus === 'tag' && tagHeute() !== tag) modusSetzen('tag');   // Mitternacht ist vorbei: neue Tagesfahrt
+  zufallSetzen();
+  for (let i = verkehr.length - 1; i >= 0; i--) if (modus === 'tag' || verkehr[i].position.z > -170 || zustand === 'ende') entferneAuto(i);
   zustand = 'fahrt';
   kmh = Math.max(kmh, S.start - 10); punkte = 0;
   hebelAufKmh(S.start);
   requestAnimationFrame(hebelZeichnen); zeit = 0; combo = 1; comboZeit = 0; knappZaehler = 0;
   spielerZuruecksetzen();
-  laufMuenzen = 0; nitro = stand.upgrades.nitro ? 0.3 : 0; nitroZeit = 0;
-  schutzLadungen = stand.upgrades.airbag + ((AUTOS[stand.auto] || AUTOS.kestrel).schutz || 0); schutzAnzeigen();
-  document.documentElement.classList.toggle('hat-nitro', stand.upgrades.nitro > 0);
+  laufMuenzen = 0; nitro = tuning().nitro ? 0.3 : 0; nitroZeit = 0;
+  schutzLadungen = tuning().airbag + (fahrzeug().schutz || 0); schutzAnzeigen();
+  document.documentElement.classList.toggle('hat-nitro', tuning().nitro > 0);
+  lauf = { knapp:0, km:0, combo:1, muenzen:0, baustellen:0, tempo:0, tempoMax:0, punkte:0, tagesfahrt:modus === 'tag' ? 1 : 0 };
+  laufAuftragLohn = 0; auftragTakt = 0.5;
+  baustelleBeenden(); naechsteBaustelle = distanz + 1300 + zufall.baustelle()*900;
   $('nitroText').textContent = IST_TOUCH ? 'Nitro' : 'Nitro (Leertaste)';
   muenzenLeeren(); naechsteMuenzen = distanz + 90;
   naechsterSpawn = distanz + 40; startDistanz = distanz;
-  for (let z = -140; z > SPAWN_Z; z -= 55){ const sp = Math.random()*3|0; if (spurFrei(sp, z, 30)) erzeugeAuto(sp, z); }
+  for (let z = -140; z > SPAWN_Z; z -= 55){ const r = ableiten(zufall.welle), sp = r()*3|0; if (spurFrei(sp, z, 30)) erzeugeAuto(sp, z, r); }
   zeige('menue', false); zeige('ende', false); zeige('pause', false); zeige('garage', false);
   $('tipp').textContent = IST_TOUCH ? { wischen:'Seitlich ziehen lenkt, hoch ist Gas, runter bremst', tippen:'Hälfte halten lenkt, Schubhebel rechts stellt das Tempo ein', neigen:'Neigen lenkt, Finger hochschieben gibt Gas' }[steuerModus] : 'Weiche aus – je knapper, desto mehr Punkte';
   $('hud').classList.add('an'); $('tipp').style.opacity = 0.8;
   setTimeout(() => $('tipp').style.opacity = 0, 4500);
+  meldungZeit = 0;
+  if (modus === 'tag') meldung(`Tagesfahrt · ${WETTER[wetter].name} · Kestrel GT ohne Tuning`, 4);
   canvas.focus && canvas.focus();
 }
 let startDistanz = 0;
@@ -1870,23 +2177,35 @@ function crash(a){
 function spielEnde(zeitUm = false){
   zustand = 'ende'; wachHalten(false);
   const neu = punkte > rekord;
-  if (neu){ rekord = Math.floor(punkte); speicher.schreib('bs_rekord_' + stufe, rekord); }
-  $('endeStufe').textContent = S.name;
+  if (neu){
+    rekord = Math.floor(punkte);
+    if (modus === 'tag') speicher.schreib('bs_tagesrekord', { tag, punkte:rekord });
+    else speicher.schreib('bs_rekord_' + stufe, rekord);
+  }
+  auftraegePruefen();
+  $('endeStufe').textContent = modus === 'tag' ? 'Tagesfahrt (Normal)' : S.name;
+  $('endeRekordText').textContent = modus === 'tag' ? 'Dein Bestwert heute' : 'Rekord auf dieser Stufe';
+  $('endeAuftragZeile').hidden = !laufAuftragLohn;
+  $('endeAuftrag').textContent = '+' + laufAuftragLohn.toLocaleString('de-DE');
+  $('zumMenue').hidden = modus !== 'tag';
   $('endePunkte').textContent = fmt(punkte);
   $('neuerRekord').hidden = !neu;
   $('endeStrecke').textContent = ((distanz - startDistanz)/1000).toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 }) + ' km';
   $('endeKnapp').textContent = knappZaehler;
   $('endeRekord').textContent = fmt(rekord);
   const bonus = Math.floor(punkte/80);
-  const verdient = Math.round((laufMuenzen + bonus)*(1 + stand.upgrades.muenzwert*0.2)*S.faktor*(wetter === 'regen' ? 1.25 : 1));
+  const wb = WETTER[wetter].bonus;
+  const verdient = Math.round((laufMuenzen + bonus)*(1 + stand.upgrades.muenzwert*0.2)*S.faktor*wb);
   stand.muenzen += verdient; speichern(); kontoAnzeigen();
   $('endeMuenzen').textContent = '+' + verdient.toLocaleString('de-DE');
-  $('endeMuenzDetail').textContent = `(${laufMuenzen} eingesammelt, ${bonus} Punktebonus${wetter === 'regen' ? ', Regen +25 %' : ''})`;
+  $('endeMuenzDetail').textContent = `(${laufMuenzen} eingesammelt, ${bonus} Punktebonus${wb > 1 ? `, ${WETTER[wetter].name} +${Math.round((wb - 1)*100)} %` : ''})`;
   $('endeText').textContent = zeitUm ? 'Die Zeit ist abgelaufen.' : ['Die Leitplanke hat gewonnen.', 'Das war zu knapp.', 'Warnblinker an, Dreieck raus.', 'Die Versicherung ruft an.'][Math.random()*4|0];
   $('endeTitel').textContent = zeitUm ? 'Ziel' : 'Unfall';
   rekordAnzeigen();
   zeige('ende', true); $('hud').classList.remove('an');
-  online.fahrtBeendet({ stufe, punkte:Math.floor(punkte), strecke:(distanz - startDistanz)/1000, dauer:zeit, knapp:knappZaehler });
+  const f = { stufe, punkte:Math.floor(punkte), strecke:(distanz - startDistanz)/1000, dauer:zeit, knapp:knappZaehler };
+  if (modus === 'tag') f.tag = tag;
+  online.fahrtBeendet(f);
   setTimeout(() => ($('nochmal').hidden ? $('garageVonEnde') : $('nochmal')).focus(), 60);
 }
 
@@ -1914,7 +2233,7 @@ function update(dt){
       eingabe.hebelBremst = ziel < kmh - 6;
     }
     // Nitro: Aufschlag je Tuning-Stufe auf das Gas-Ziel statt auf das aktuelle Tempo, sonst steigt es unbegrenzt
-    if (nitroZeit > 0){ ziel = Math.max(ziel, Math.min(S.basisMax + S.gasPlus, basis + S.gasPlus) + nitroSchub(stand.upgrades.nitro)); gas = true; nitroZeit -= dt; }
+    if (nitroZeit > 0){ ziel = Math.max(ziel, Math.min(S.basisMax + S.gasPlus, basis + S.gasPlus) + nitroSchub(tuning().nitro)); gas = true; nitroZeit -= dt; }
     const diff = ziel - kmh;
     kmh += Math.max(-75*dt, Math.min(diff, (nitroZeit > 0 ? 110 : gas ? 32 : 15)*dt));
   } else if (zustand === 'menue' || zustand === 'garage'){
@@ -1937,7 +2256,7 @@ function update(dt){
   if (zustand !== 'crash' && distanz >= naechsterSpawn){
     spawneWelle(zustand !== 'fahrt');
     const abstand = zustand === 'fahrt' ? (S.abstand[0] - d*(S.abstand[0] - S.abstand[1])) : 80;
-    naechsterSpawn = distanz + abstand*(0.65 + Math.random()*0.7);
+    naechsterSpawn = distanz + abstand*(0.65 + zufall.welle()*0.7);
   }
 
   // Lenkung
@@ -1973,7 +2292,7 @@ function update(dt){
   if (!fahrt) lenk = 0;
   const tf = Math.min(1, (kmh - 100) / 220);
   if (zustand === 'fahrt' || zustand === 'pause'){
-    const lf = (AUTOS[stand.auto] || AUTOS.kestrel).lenk*(1 + stand.upgrades.lenkung*0.08);
+    const lf = fahrzeug().lenk*(1 + tuning().lenkung*0.08);
     const zielVX = lenk*(8.5 + tf*4.5)*lf;
     spielerVX += (zielVX - spielerVX)*Math.min(1, dt*(Math.abs(lenk) > 0.05 ? 7*lf : 9));
     spielerX += spielerVX*dt;
@@ -2017,6 +2336,12 @@ function update(dt){
     }
     let wunsch = u.basisV;
     if (luecke < 28) wunsch = Math.min(wunsch, vorV - (28 - luecke)*0.12);
+    // Baustelle voraus in der eigenen Spur: in die Mitte einfädeln, sonst vor der Tafel anhalten
+    if (baustelle.aktiv && u.spur === baustelle.spur && !u.wechsel && a.position.z > baustelle.z){
+      const vorTafel = a.position.z - u.l/2 - baustelle.z;
+      if (vorTafel < 160 && spurFrei(1, a.position.z, u.l/2 + 10)){ u.wechsel = { von:u.spur, nach:1, t:0.6 }; u.zielSpur = 1; }
+      else if (vorTafel < 40) wunsch = Math.min(wunsch, Math.max(0, (vorTafel - 6)*0.35));
+    }
     if (zustand === 'crash' || zustand === 'ende'){ if (a.position.z > -40 && Math.abs(a.position.x - spielerX) < 3) wunsch = Math.min(wunsch, u.v*0.9); }
     wunsch = Math.max(0, wunsch);
     u.bremst = wunsch < u.v - 0.4;
@@ -2029,10 +2354,11 @@ function update(dt){
 
     // Spurwechsel
     const rel = Math.max(5, tempo - u.v);
-    if (!u.wechsel && u.typ !== 'lkw' && fahrt && a.position.z < -Math.max(45, rel*2.6) && a.position.z > -380 && Math.random() < dt*(S.wechsel[0] + d*(S.wechsel[1] - S.wechsel[0]))){
-      const opts = [u.spur - 1, u.spur + 1].filter(s => s >= 0 && s <= 2);
-      const ziel = opts[Math.random()*opts.length|0];
-      if (spurFrei(ziel, a.position.z, u.l/2 + 14)){ u.wechsel = { von:u.spur, nach:ziel, t:0 }; u.zielSpur = ziel; }
+    if (!u.wechsel && u.typ !== 'lkw' && fahrt && a.position.z < -Math.max(45, rel*2.6) && a.position.z > -380 && (u.wechselT -= dt) <= 0){
+      u.wechselT = wechselZeit(u.rng);
+      const opts = [u.spur - 1, u.spur + 1].filter(s => s >= 0 && s <= 2 && !gesperrt(s, a.position.z, 160));
+      const ziel = opts[u.rng()*opts.length|0];
+      if (opts.length && spurFrei(ziel, a.position.z, u.l/2 + 14)){ u.wechsel = { von:u.spur, nach:ziel, t:0 }; u.zielSpur = ziel; }
     }
     if (u.wechsel){
       const w = u.wechsel; w.t += dt;
@@ -2062,8 +2388,8 @@ function update(dt){
         if (nah){
           knappZaehler++;
           combo = Math.min(8, combo + (comboZeit > 0 ? 1 : 0)); comboZeit = 5;
-          const bonus = Math.round((60 + kmh*0.6)*combo*S.faktor*(AUTOS[stand.auto] || AUTOS.kestrel).punkte*(nitroZeit > 0 ? 2 : 1));
-          if (stand.upgrades.nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.22);
+          const bonus = Math.round((60 + kmh*0.6)*combo*S.faktor*fahrzeug().punkte*(nitroZeit > 0 ? 2 : 1));
+          if (tuning().nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.22);
           punkte += bonus;
           knappZeigen((combo > 1 ? 'Knapp! ×' + combo : 'Knapp!') + '  +' + bonus);
           klang.knapp(); wackeln = Math.max(wackeln, 0.18);
@@ -2082,12 +2408,19 @@ function update(dt){
 
   // Punkte
   if (fahrt){
-    punkte += kmh*dt*0.12*(1 + (combo - 1)*0.15)*S.faktor*(AUTOS[stand.auto] || AUTOS.kestrel).punkte*(nitroZeit > 0 ? 2 : 1);
+    punkte += kmh*dt*0.12*(1 + (combo - 1)*0.15)*S.faktor*fahrzeug().punkte*(nitroZeit > 0 ? 2 : 1);
     unverwundbar = Math.max(0, unverwundbar - dt);
     if (spielerModell) spielerModell.visible = unverwundbar <= 0 || Math.floor(unverwundbar*12) % 2 === 0;
-    if (distanz >= naechsteMuenzen){ muenzReiheSpawnen(); naechsteMuenzen = distanz + 110 + Math.random()*100; }
+    if (distanz >= naechsteMuenzen){ muenzReiheSpawnen(); naechsteMuenzen = distanz + 110 + zufall.muenzen()*100; }
     comboZeit -= dt; if (comboZeit <= 0) combo = 1;
+    lauf.knapp = knappZaehler; lauf.km = (distanz - startDistanz)/1000; lauf.combo = Math.max(lauf.combo, combo);
+    lauf.muenzen = laufMuenzen; lauf.punkte = punkte;
+    lauf.tempo = kmh > 250 ? lauf.tempo + dt : 0; lauf.tempoMax = Math.max(lauf.tempoMax, lauf.tempo);
+    auftragTakt -= dt; if (auftragTakt <= 0){ auftragTakt = 0.25; auftraegePruefen(); }
   }
+  baustelleAktualisieren(dt);
+  meldungZeit = Math.max(0, meldungZeit - dt);
+  if (meldungZeit <= 0 && hudCache.meldung){ hudCache.meldung = false; $('meldung').classList.remove('an'); }
 
   // Crash-Ablauf
   if (zustand === 'crash'){
@@ -2097,7 +2430,7 @@ function update(dt){
 
   // Münzen
   {
-    const magnetR = stand.upgrades.magnet ? 1.4 + stand.upgrades.magnet*0.9 : 0;
+    const magnetR = tuning().magnet ? 1.4 + tuning().magnet*0.9 : 0;
     for (let i = muenzenAktiv.length - 1; i >= 0; i--){
       const g = muenzenAktiv[i];
       g.position.z += tempo*dt;
@@ -2110,7 +2443,7 @@ function update(dt){
         }
         if (Math.abs(spielerX - g.position.x) < spielerB/2 + 0.5 && Math.abs(g.position.z) < spielerL/2 + 0.5){
           laufMuenzen++; weg = true; klang.muenze();
-          if (stand.upgrades.nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.03);
+          if (tuning().nitro && nitroZeit <= 0) nitro = Math.min(1, nitro + 0.03);
         }
       }
       if (!weg) for (const a of verkehr){
@@ -2195,7 +2528,7 @@ function update(dt){
     if (km !== hudCache.km){ hudCache.km = km; hud.strecke.textContent = (km/10).toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 }) + ' km'; }
     if (combo !== hudCache.combo){ hudCache.combo = combo; hud.combo.classList.toggle('leer', combo <= 1); hud.combo.textContent = '×' + combo; }
     if (laufMuenzen !== hudCache.m){ hudCache.m = laufMuenzen; $('muenzHud').textContent = laufMuenzen; }
-    const nw = nitroZeit > 0 ? Math.round(nitroZeit/(2.5 + stand.upgrades.nitro*0.7)*100) : Math.round(nitro*100);
+    const nw = nitroZeit > 0 ? Math.round(nitroZeit/(2.5 + tuning().nitro*0.7)*100) : Math.round(nitro*100);
     if (nw !== hudCache.nw){ hudCache.nw = nw; $('nitroFuellung').style.width = nw + '%'; }
     const bereit = nitro >= 1 && nitroZeit <= 0;
     if (bereit !== hudCache.bereit){ hudCache.bereit = bereit; $('nitroHud').classList.toggle('bereit', bereit); $('nitroKnopf').classList.toggle('bereit', bereit); }
@@ -2342,12 +2675,12 @@ const online = (() => {
   /* --- Overlays --- */
   function overlayZeigen(id){
     OVERLAYS.forEach(o => zeige(o, o === id));
-    zeige('menue', false); zeige('ende', false);
+    zeige('menue', false); zeige('ende', false); zeige('auftraegeEbene', false);
   }
   function overlaysZu(){
     OVERLAYS.forEach(o => zeige(o, false));
     if (zurueckZu === 'ende' && zustand === 'ende') zeige('ende', true);
-    else if (zustand === 'menue'){ zeige('menue', true); if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50); }
+    else if (zustand === 'menue'){ zeige('menue', true); auftraegeAnzeigen(); if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 50); }
   }
   const offen = id => !$(id).classList.contains('aus');
   function overlayOffen(){ return OVERLAYS.some(offen); }
@@ -2359,6 +2692,7 @@ const online = (() => {
   }
   function vomEndeWeg(){
     if (zustand === 'ende'){ spielerZuruecksetzen(); zustand = 'menue'; }
+    modusSetzen('frei');
     zurueckZu = 'menue';
   }
 
@@ -2403,7 +2737,7 @@ const online = (() => {
       const d = await api('/api/bestenliste?stufe=' + listeStufe);
       if (d.stufe !== listeStufe) return;
       box.replaceChildren();
-      if (!d.eintraege.length) box.append($k('div', 'leer-text', 'Noch keine Einträge – fahr die erste Bestzeit!'));
+      if (!d.eintraege.length) box.append($k('div', 'leer-text', listeStufe === 'tag' ? 'Heute ist noch niemand die Tagesfahrt gefahren – sei die oder der Erste!' : 'Noch keine Einträge – fahr die erste Bestzeit!'));
       d.eintraege.forEach(e => {
         const z = $k('div', 'rang' + (konto && e.id === konto.id ? ' ich' : ''));
         const nm = $k('div', 'nm', e.name); nm.append($k('small', '', e.strecke.toLocaleString('de-DE', { maximumFractionDigits:1 }) + ' km' + (e.olymp ? ' · Olympia' : '')));
@@ -2411,12 +2745,14 @@ const online = (() => {
         box.append(z);
       });
       $('listeIch').textContent = d.ich ? `Du: Platz ${d.ich.platz} von ${d.gesamt} mit ${fmt(d.ich.punkte)} Punkten`
-        : konto ? 'Du hast auf dieser Stufe noch keine gewertete Fahrt.' : 'Wähle einen Namen, damit deine Fahrten gewertet werden.';
+        : !konto ? 'Wähle einen Namen, damit deine Fahrten gewertet werden.'
+        : listeStufe === 'tag' ? 'Du bist heute noch keine Tagesfahrt gefahren. Jeden Tag gibt es eine neue Strecke.'
+        : 'Du hast auf dieser Stufe noch keine gewertete Fahrt.';
     } catch (e) { box.replaceChildren($k('div', 'leer-text', e.message)); $('listeIch').textContent = ''; }
   }
   function listeOeffnen(){
     zurueckZu = zustand === 'ende' ? 'ende' : 'menue';
-    listeStufe = stufe;
+    listeStufe = modus === 'tag' ? 'tag' : stufe;
     overlayZeigen('bestenliste'); listeLaden();
     setTimeout(() => $('listeZurueck').focus(), 60);
   }
@@ -2428,7 +2764,7 @@ const online = (() => {
   async function ergebnisSenden(f){
     const zeile = $('endeWeltZeile'), wert = $('endeWelt');
     zeile.hidden = false;
-    if (konto && konto.olymp){ wert.textContent = 'Olympia-Fahrt – wird nach dem Rennen eingetragen'; return; }
+    if (konto && konto.olymp){ wert.textContent = f.tag ? 'In der Olympiade wird die Tagesfahrt nicht gewertet' : 'Olympia-Fahrt – wird nach dem Rennen eingetragen'; return; }
     if (!konto){
       wert.textContent = 'Name wählen, um gewertet zu werden';
       // Direkt nach der Fahrt nach dem Namen fragen; nameSpeichern wertet die Fahrt dann nachträglich.
@@ -2440,8 +2776,8 @@ const online = (() => {
     try {
       const r = await api('/api/ergebnis', 'POST', f);
       f.gesendet = true;
-      if (letzteFahrt === f) wert.textContent = (r.platz ? `Platz ${r.platz} von ${r.gesamt}` : 'gewertet') + (r.neuerBestwert ? ' · neue Bestleistung' : '');
-    } catch (e) { if (letzteFahrt === f) wert.textContent = 'nicht gewertet'; }
+      if (letzteFahrt === f) wert.textContent = (r.platz ? `Platz ${r.platz} von ${r.gesamt}${f.tag ? ' heute' : ''}` : 'gewertet') + (r.neuerBestwert ? ' · neue Bestleistung' : '');
+    } catch (e) { if (letzteFahrt === f) wert.textContent = e.status === 400 && f.tag ? e.message : 'nicht gewertet'; }
   }
 
   /* --- Verbindung --- */
@@ -2572,6 +2908,7 @@ const online = (() => {
 
   /* --- Rennen --- */
   function countdownStarten(m){
+    modusSetzen('frei');
     rs.phase = 'countdown'; rs.ergebnis = null; rs.fahrer = []; rs.restMs = m.dauerMs; rs.ausGemeldet = false;
     if (rs.alteStufe === null) rs.alteStufe = stufe;
     stufe = m.stufe; S = STUFEN[stufe]; rekord = speicher.lies('bs_rekord_' + stufe, 0); rekordAnzeigen();

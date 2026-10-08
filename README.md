@@ -2,6 +2,13 @@
 
 Endloses 3D-Nachtfahrt-Spiel im Browser (three.js). Weiche dem Verkehr aus – je knapper, desto mehr Punkte. Münzen sammeln, in der Garage Autos, Tuning, Lack und Licht kaufen.
 
+## Nachtschicht-Update
+
+- **Tagesfahrt:** Jeden Tag (deutsche Zeit) eine Strecke, die für alle gleich ist: gleiche Verkehrswellen, Münzreihen, Baustellen und gleiches Wetter. Gefahren wird auf Normal mit dem Kestrel GT ohne Tuning, damit nur das Fahren zählt. Gewertet wird in einer eigenen Tagesbestenliste (Reiter „Heute“). Wie viel Verkehr genau kommt, hängt auch vom eigenen Tempo ab, die Folge der Ereignisse bleibt aber gleich.
+- **Baustellen:** Ab und zu ist die linke oder rechte Spur gesperrt, mit Absperrtafel, Lauflicht und Bakenreihe. Der Verkehr fädelt ein. Wer die Baken streift, kracht (oder verbraucht einen Airbag). Ohne Kratzer gibt es einen Bonus.
+- **Nebel:** Neues Wetter. Die Sicht endet nach gut 150 m, dafür gibt es 35 % mehr Münzen.
+- **Aufträge:** Jeden Tag drei Aufgaben für alle, z. B. „15 knappe Manöver in einer Fahrt“. Die Münzen gibt es sofort, wenn ein Auftrag geschafft ist.
+
 ## Online-Funktionen
 
 - **Fahrername:** einmal wählen (ohne Passwort). Der Name wird auf dem Gerät gespeichert und ist weltweit eindeutig.
