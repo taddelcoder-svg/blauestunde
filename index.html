@@ -1841,14 +1841,14 @@ function gebirgeBauen(k, r, pg, sg){
   for (let t = 0; t < kopien(P); t++) for (const f of felsen){
     q.setFromEuler(e.set(0.2, f.rot, 0.1));
     m.compose(v.set(f.x, f.sy*0.35, 40 + f.z - t*P), q, sk.set(f.sx, f.sy, f.sz)); mesh.setMatrixAt(j, m);
-    c.setHSL(0.08 + r()*0.04, 0.08, 0.2 + r()*0.08); mesh.setColorAt(j, c);
+    c.setHSL(0.08 + r()*0.04, 0.1, 0.045 + r()*0.04); mesh.setColorAt(j, c);
     j++;
   }
   mesh.frustumCulled = false; g.add(mesh);
   // Schneegipfel am Horizont
   const s = sg();
-  const bergMat = new THREE.MeshBasicMaterial({ color:0x181b28, fog:false });
-  const schneeMat = new THREE.MeshBasicMaterial({ color:0x9aa6c2, fog:false });
+  const bergMat = new THREE.MeshBasicMaterial({ color:0x05060b, fog:false });
+  const schneeMat = new THREE.MeshBasicMaterial({ color:0x323a4e, fog:false });
   for (let i = 0; i < 13; i++){
     const a = -1.5 + i*0.25 + (r() - 0.5)*0.12, R = 900 + r()*250, h = 280 + r()*260, rad = h*(0.7 + r()*0.3);
     const berg = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 7), bergMat); berg.position.set(Math.sin(a)*R, h/2 - 40, -Math.cos(a)*R); berg.renderOrder = -7; s.add(berg);
