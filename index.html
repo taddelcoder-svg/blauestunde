@@ -393,7 +393,7 @@
   <div class="schild" role="dialog" aria-labelledby="titel">
     <svg class="pfeil" viewBox="0 0 54 54" aria-hidden="true"><path d="M27 48V12M27 6 14 22M27 6l13 16" stroke="#f3f5f7" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <h1 id="titel">Blaue Stunde</h1>
-    <div class="unter">Eine Nachtfahrt ohne Ende</div>
+    <div class="unter" id="untertitel">Eine Nachtfahrt ohne Ende</div>
     <div class="zeile"><span>Schwierigkeit</span><div class="wahl" id="stufenWahl">
       <button data-stufe="leicht" aria-pressed="false">Leicht</button>
       <button data-stufe="normal" aria-pressed="true">Normal</button>
@@ -401,6 +401,11 @@
     </div></div>
     <div class="stufeInfo steuerung" id="stufeInfo" style="margin:4px 0 10px"></div>
     <div class="zeile"><span>Rekord</span><b id="rekordMenue">0</b></div>
+    <div class="zeile"><span>Strecke</span><div class="wahl">
+      <button id="streckeZurueck" aria-label="Vorherige Strecke">‹</button>
+      <button id="streckeName" aria-pressed="true" style="min-width:104px">Land</button>
+      <button id="streckeVor" aria-label="Nächste Strecke">›</button>
+    </div></div>
     <div class="zeile"><span>Wetter</span><div class="wahl" id="wetterWahl">
       <button data-wert="klar" aria-pressed="true">Klar</button>
       <button data-wert="regen" aria-pressed="false">Regen +25 %</button>
@@ -827,6 +832,7 @@ himmel.renderOrder = -10; szene.add(himmel);
   hof.position.copy(mond.position); hof.renderOrder = -8; szene.add(hof); himmelDeko.push(hof);
 }
 // Berge & Skyline
+const fern = {};
 {
   const bergTex = canvasTex(2048, 256, (x, w, h) => {
     const schicht = (farbe, basis, amp, frq, seed) => {
@@ -843,7 +849,7 @@ himmel.renderOrder = -10; szene.add(himmel);
   });
   const berge = new THREE.Mesh(new THREE.CylinderGeometry(1150, 1150, 230, 64, 1, true),
     new THREE.MeshBasicMaterial({ map:bergTex, transparent:true, fog:false, side:THREE.BackSide, depthWrite:false }));
-  berge.position.y = 60; berge.renderOrder = -7; szene.add(berge); fernDeko.push(berge.material);
+  berge.position.y = 60; berge.renderOrder = -7; szene.add(berge); fernDeko.push(berge.material); fern.berge = berge;
 
   const stadtTex = canvasTex(2048, 256, (x, w, h) => {
     let px = 0;
@@ -859,7 +865,7 @@ himmel.renderOrder = -10; szene.add(himmel);
   });
   const stadt = new THREE.Mesh(new THREE.CylinderGeometry(950, 950, 110, 48, 1, true, Math.PI - 0.9, 1.5),
     new THREE.MeshBasicMaterial({ map:stadtTex, transparent:true, fog:false, side:THREE.DoubleSide, depthWrite:false, color:0xb0a8c8 }));
-  stadt.position.y = 42; stadt.renderOrder = -6; szene.add(stadt); fernDeko.push(stadt.material);
+  stadt.position.y = 42; stadt.renderOrder = -6; szene.add(stadt); fernDeko.push(stadt.material); fern.stadt = stadt;
 }
 
 /* ---------- Licht & Umgebung ---------- */
@@ -995,8 +1001,9 @@ function periodischeGruppe(periode){ const g = new THREE.Group(); szene.add(g); 
 }
 // Straßenlaternen im Mittelstreifen
 const laternenLichter = [];
+const laternenGruppe = periodischeGruppe(60);
 {
-  const g = periodischeGruppe(60);
+  const g = laternenGruppe;
   const mastMat = new THREE.MeshStandardMaterial({ color:0x5d626b, metalness:0.75, roughness:0.4 });
   const kopfMat = new THREE.MeshStandardMaterial({ color:0x1a1a1a, emissive:0xffc27a, emissiveIntensity:2.2 });
   const poolTex = canvasTex(256, 256, (x, w) => {
@@ -1031,13 +1038,13 @@ const laternenLichter = [];
     g.add(l);
   }
 }
-// Bäume
-{
+// Bäume (für die Küste nur links der Fahrbahn)
+function baeumeBauen(nurLinks){
   const P = 480;
   const g = periodischeGruppe(P);
   const basis = [];
   for (let i = 0; i < Q.baeume; i++){
-    const rechts = Math.random() < 0.55;
+    const rechts = !nurLinks && Math.random() < 0.55;
     const x = rechts ? 14 + Math.pow(Math.random(), 1.4)*70 : -27 - Math.pow(Math.random(), 1.4)*70;
     basis.push({ x, z:-Math.random()*P, s:1.3 + Math.random()*1.5, h:1.6 + Math.random()*1.2 });
   }
@@ -1057,7 +1064,9 @@ const laternenLichter = [];
   }
   krone.frustumCulled = false; stamm.frustumCulled = false;
   g.add(krone, stamm);
+  return g;
 }
+const baumGruppe = baeumeBauen(false);
 // Schilderbrücke
 const schildBruecke = { gruppe:null, tex:null, ctx:null, zyklus:-1 };
 {
@@ -1080,7 +1089,8 @@ function zeichneSchild(km){
   x.fillStyle = '#f3f5f7';
   x.font = '700 92px "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif';
   x.textBaseline = 'middle';
-  const ziele = [['Stuttgart', km], ['Karlsruhe', km + 67]];
+  const [ort1, ort2] = STRECKEN[streckeJetzt()].schild;
+  const ziele = [[ort1, km], [ort2, km + 67]];
   ziele.forEach(([name, d], i) => {
     const y = 110 + i*110;
     x.textAlign = 'left'; x.fillText(name, 70, y);
@@ -1634,11 +1644,26 @@ const dreieckMat = new THREE.MeshBasicMaterial({ map:canvasTex(64, 64, (x, w, h)
   x.fillStyle = '#f2f2f2'; x.fill();
 }), transparent:true, side:THREE.DoubleSide });
 const dreieckGeo = new THREE.PlaneGeometry(0.75, 0.75);
+const felsGeo = new THREE.IcosahedronGeometry(1, 0);
+const felsMat = new THREE.MeshStandardMaterial({ color:0x6a635a, roughness:1, flatShading:true });
+function felsSetzen(spur, r){
+  const g = new THREE.Group();
+  for (let i = 0; i < 5; i++){
+    const m = new THREE.Mesh(felsGeo, felsMat), sc = 0.45 + r()*0.6;
+    m.scale.set(sc*1.25, sc, sc); m.position.set((r() - 0.5)*1.5, sc*0.6, (r() - 0.5)*1.3); m.rotation.set(r()*3, r()*3, r()*3);
+    g.add(m);
+  }
+  g.position.set(SPUREN[spur], 0, SPAWN_Z);
+  g.userData = { typ:'fels', l:2.6, b:2.3, raeder:[], rueckGlows:[], blinker:[], vorn:[], rueckMat:new THREE.MeshBasicMaterial(), spiegel:null,
+    spur, zielSpur:null, basisV:0, v:0, bremst:false, wechsel:null, passiert:false, knapp:false, rng:r, wechselT:Infinity, panne:true, fels:true, gemeldet:false };
+  szene.add(g); verkehr.push(g);
+}
 function panneSpawnen(){
   const r = ableiten(zufall.panne);
   const reihe = [0, 1, 2].map(sp => [r(), sp]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
   for (const spur of reihe){
     if (!spurFrei(spur, SPAWN_Z, 70) || gesperrt(spur, SPAWN_Z, 250)) continue;
+    if (streckeJetzt() === 'gebirge'){ felsSetzen(spur, r); return; }
     erzeugeAuto(spur, SPAWN_Z, r);
     const a = verkehr[verkehr.length - 1], u = a.userData;
     Object.assign(u, { panne:true, basisV:0, v:0, wechselT:Infinity, gemeldet:false });
@@ -1679,6 +1704,264 @@ function tageszeitAktualisieren(dt){
   szene.fog.color.copy(u.horizont.value); szene.background.copy(u.horizont.value);
   const morgen = (a === H.morgen ? 1 - f : 0) + (b === H.morgen ? f : 0);
   if (himmelDeko[0] && himmelDeko[0].material) himmelDeko[0].material.opacity = 1 - morgen*0.75;
+}
+
+/* ---------- Strecken ----------
+   Fünf Umgebungen mit eigener Kulisse. Die Teile einer Strecke werden erst gebaut, wenn sie zum ersten Mal gewählt wird.
+   Land: Wald, Berge, Skyline. Stadt: Hochhäuser und Leuchtreklame. Küste: Meer, Leuchtturm, Seitenwind.
+   Gebirge: Felswände, Schneegipfel, Steinschlag. Tunnel: lange Röhren im Natriumlicht, drinnen kein Regen. */
+const STRECKEN = {
+  land:{ name:'Land', info:'Land: Wälder, Berge und die Lichter der Stadt', schild:['Stuttgart', 'Karlsruhe'] },
+  stadt:{ name:'Stadt', info:'Stadt: Hochhäuser und Leuchtreklame', schild:['Zentrum', 'Flughafen'] },
+  kueste:{ name:'Küste', info:'Küste: Meer, Leuchtturm und Seitenwind', schild:['Kiel', 'Lübeck'] },
+  gebirge:{ name:'Gebirge', info:'Gebirge: Felswände, Gipfel und Steinschlag', schild:['Garmisch', 'Innsbruck'] },
+  tunnel:{ name:'Tunnel', info:'Tunnel: lange Röhren im Natriumlicht', schild:['Gotthard', 'Airolo'] }
+};
+const STRECKEN_IDS = Object.keys(STRECKEN);
+let strecke = speicher.lies('bs_strecke', 'land');
+if (!STRECKEN[strecke]) strecke = 'land';
+const tagesStrecke = t => STRECKEN_IDS[samen(t + ':strecke') % STRECKEN_IDS.length];
+const streckeJetzt = () => modus === 'tag' ? tagesStrecke(tag) : strecke;
+const kulisse = {};
+const kopien = P => Math.ceil((SICHT + 60 + P)/P) + 1;
+function kulisseBauen(id){
+  if (kulisse[id]) return kulisse[id];
+  const k = kulisse[id] = { gruppen:[] };
+  const r = zufallsfolge(samen('kulisse:' + id));   // immer gleiche Kulisse
+  const pg = P => { const g = periodischeGruppe(P); g.visible = false; k.gruppen.push(g); return g; };
+  const sg = () => { const g = new THREE.Group(); g.visible = false; szene.add(g); k.gruppen.push(g); return g; };
+  ({ stadt:stadtBauen, kueste:kuesteBauen, gebirge:gebirgeBauen, tunnel:tunnelBauen })[id](k, r, pg, sg);
+  return k;
+}
+// Box mit UVs nach Größe, damit sich die Fenstertextur wiederholt statt zu strecken
+function kachelBox(w, h, d, ux, uy){
+  const geo = new THREE.BoxGeometry(w, h, d), uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i)*Math.max(1, Math.round(w/ux)), uv.getY(i)*Math.max(1, Math.round(h/uy)));
+  return geo;
+}
+
+function stadtBauen(k, r, pg){
+  const P = 300, g = pg(P);
+  const fenster = canvasTex(64, 96, (x, w, h) => {
+    x.fillStyle = '#0b0c14'; x.fillRect(0, 0, w, h);
+    for (let y = 4; y < h; y += 16) for (let xx = 3; xx < w; xx += 16){
+      const z = Math.random();
+      x.fillStyle = z < 0.45 ? (Math.random() < 0.75 ? `rgba(255,${190 + Math.random()*50|0},${110 + Math.random()*60|0},${0.6 + Math.random()*0.4})`
+        : `rgba(${150 + Math.random()*60|0},${205 + Math.random()*40|0},255,${0.5 + Math.random()*0.4})`) : 'rgba(38,42,58,.7)';
+      x.fillRect(xx, y, 10, 10);
+    }
+  });
+  fenster.wrapS = fenster.wrapT = THREE.RepeatWrapping;
+  const hausMat = new THREE.MeshStandardMaterial({ map:fenster, emissive:0xffffff, emissiveMap:fenster, emissiveIntensity:0.9, color:0x8f96a8, roughness:0.8 });
+  const dachLicht = [];
+  const seite = (sx, xMin) => {
+    let z = 0;
+    while (z > -P + 10){
+      const w = 12 + r()*16, d = 14 + r()*16, h = r() < 0.25 ? 45 + r()*45 : 14 + r()*28;
+      const x = sx*(xMin + w/2 + r()*8), geo = kachelBox(w, h, d, 8, 6);
+      for (let t = 0; t < kopien(P); t++){
+        const m = new THREE.Mesh(geo, hausMat);
+        m.position.set(x, h/2, 40 + z - d/2 - t*P); g.add(m);
+        if (h > 50){ const l = leuchten(0xff3030, 2.2, 0.9); l.position.set(x, h + 1, 40 + z - d/2 - t*P); g.add(l); dachLicht.push(l); }
+      }
+      z -= d + 3 + r()*9;
+    }
+  };
+  seite(1, 14); seite(-1, 25);
+  // Leuchtreklame
+  const werbung = [['TADDEL COLA', '#ff2aa8'], ['NACHTBUS 24/7', '#2ad8ff'], ['PIZZA BLAUE STUNDE', '#ffd02a'], ['KINO · SPÄTVORSTELLUNG', '#7dff5a']];
+  const mast = new THREE.MeshStandardMaterial({ color:0x3a3e46, metalness:0.7, roughness:0.4 });
+  werbung.forEach(([text, farbe], i) => {
+    const tex = canvasTex(512, 160, (x, w, h) => {
+      x.fillStyle = '#07070d'; x.fillRect(0, 0, w, h);
+      x.strokeStyle = farbe; x.lineWidth = 8; x.shadowColor = farbe; x.shadowBlur = 18; x.strokeRect(12, 12, w - 24, h - 24);
+      x.fillStyle = farbe; x.font = '800 62px "Barlow Semi Condensed", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(text, w/2, h/2 + 3, w - 50);
+    });
+    const mat = new THREE.MeshBasicMaterial({ map:tex, toneMapped:false });
+    const rechts = i % 2 === 0, zz = -40 - i*72;
+    for (let t = 0; t < kopien(P); t++){
+      const tafel = new THREE.Mesh(new THREE.PlaneGeometry(10, 3.1), mat);
+      tafel.position.set(rechts ? 13.5 : -25, 9, zz - t*P); tafel.rotation.y = rechts ? -0.35 : 0.35; g.add(tafel);
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 8, 8), mast); p.position.set(rechts ? 13.5 : -25, 4, zz - 0.2 - t*P); g.add(p);
+    }
+  });
+  k.dachLicht = dachLicht;
+  k.boden = 0x7a7a82;
+}
+
+function kuesteBauen(k, r, pg, sg){
+  const g = sg();
+  // Strand und Meer rechts der Fahrbahn
+  const sand = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 1800), new THREE.MeshStandardMaterial({ color:0x6d6450, roughness:1 }));
+  sand.rotation.x = -Math.PI/2; sand.position.set(12, -0.02, -600); g.add(sand);
+  const meer = new THREE.Mesh(new THREE.PlaneGeometry(1500, 1800), new THREE.MeshStandardMaterial({ color:0x0a1a2c, roughness:0.12, metalness:0.75, envMapIntensity:0.9 }));
+  meer.rotation.x = -Math.PI/2; meer.position.set(14.5 + 750, -0.035, -600); g.add(meer);
+  // Glitzerpfad des Mondes auf dem Wasser
+  const glitzer = canvasTex(64, 512, (x, w, h) => {
+    x.clearRect(0, 0, w, h);
+    for (let i = 0; i < 700; i++){ const a = Math.random(); x.fillStyle = `rgba(255,255,255,${a*a})`; x.fillRect(Math.random()*w, Math.random()*h, 1 + Math.random()*3, 1); }
+  }, false);
+  glitzer.wrapT = THREE.RepeatWrapping; glitzer.repeat.set(1, 6);
+  const pfad = new THREE.Mesh(new THREE.PlaneGeometry(70, 1000), new THREE.MeshBasicMaterial({ map:glitzer, color:0xcfd8ff, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending, depthWrite:false, fog:false, toneMapped:false }));
+  pfad.rotation.set(-Math.PI/2, 0, -0.427); pfad.position.set(235, -0.02, -480); g.add(pfad);
+  k.glitzer = glitzer;
+  // Leuchtturm mit kreisendem Lichtstrahl
+  const streifen = canvasTex(64, 256, (x, w, h) => { for (let i = 0; i < 8; i++){ x.fillStyle = i % 2 ? '#e8e8e8' : '#c4161c'; x.fillRect(0, i*h/8, w, h/8); } });
+  const turm = new THREE.Mesh(new THREE.CylinderGeometry(5, 8, 60, 16), new THREE.MeshBasicMaterial({ map:streifen, color:0x6a6a70, fog:false }));
+  turm.position.set(330, 30, -820); g.add(turm);
+  const lampe = leuchten(0xfff0c0, 46, 1); lampe.material.fog = false; lampe.position.set(330, 64, -820); g.add(lampe);
+  const strahlTex = canvasTex(256, 32, (x, w, h) => {
+    const gr = x.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, 'rgba(255,245,210,.9)'); gr.addColorStop(1, 'rgba(255,245,210,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, w, h);
+  }, false);
+  const strahlMat2 = new THREE.MeshBasicMaterial({ map:strahlTex, transparent:true, opacity:0.32, blending:THREE.AdditiveBlending, depthWrite:false, fog:false, side:THREE.DoubleSide, toneMapped:false });
+  const dreh = new THREE.Group(); dreh.position.set(330, 64, -820); g.add(dreh);
+  [0, Math.PI/2].forEach(rx => { const p = new THREE.Mesh(new THREE.PlaneGeometry(700, 18), strahlMat2); p.position.x = 350; p.rotation.x = rx; dreh.add(p); });
+  k.dreh = dreh;
+  // links Kiefernwald
+  const baeume = baeumeBauen(true); baeume.visible = false; k.gruppen.push(baeume);
+  k.boden = 0xffffff;
+}
+
+function gebirgeBauen(k, r, pg, sg){
+  // Felswände beiderseits
+  const P = 320, g = pg(P);
+  const felsen = [];
+  for (let i = 0; i < 26; i++){
+    const rechts = i % 2 === 0, nah = r() < 0.3;
+    const sx = nah ? 4 + r()*5 : 7 + r()*12, sy = nah ? 4 + r()*6 : 12 + r()*38;
+    const x = rechts ? (nah ? 14 : 20) + sx + r()*18 : -(nah ? 27 : 32) - sx - r()*22;
+    felsen.push({ x, z:-r()*P, sx, sy, sz:sx*(0.8 + r()*0.6), rot:r()*6 });
+  }
+  const n = felsen.length*kopien(P);
+  const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color:0xffffff, roughness:1, flatShading:true }), n);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sk = new THREE.Vector3(), c = new THREE.Color(), e = new THREE.Euler();
+  let j = 0;
+  for (let t = 0; t < kopien(P); t++) for (const f of felsen){
+    q.setFromEuler(e.set(0.2, f.rot, 0.1));
+    m.compose(v.set(f.x, f.sy*0.35, 40 + f.z - t*P), q, sk.set(f.sx, f.sy, f.sz)); mesh.setMatrixAt(j, m);
+    c.setHSL(0.08 + r()*0.04, 0.08, 0.2 + r()*0.08); mesh.setColorAt(j, c);
+    j++;
+  }
+  mesh.frustumCulled = false; g.add(mesh);
+  // Schneegipfel am Horizont
+  const s = sg();
+  const bergMat = new THREE.MeshBasicMaterial({ color:0x181b28, fog:false });
+  const schneeMat = new THREE.MeshBasicMaterial({ color:0x9aa6c2, fog:false });
+  for (let i = 0; i < 13; i++){
+    const a = -1.5 + i*0.25 + (r() - 0.5)*0.12, R = 900 + r()*250, h = 280 + r()*260, rad = h*(0.7 + r()*0.3);
+    const berg = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 7), bergMat); berg.position.set(Math.sin(a)*R, h/2 - 40, -Math.cos(a)*R); berg.renderOrder = -7; s.add(berg);
+    const kappe = new THREE.Mesh(new THREE.ConeGeometry(rad*0.3, h*0.3, 7), schneeMat); kappe.position.set(berg.position.x, berg.position.y + h*0.35 + 0.5, berg.position.z); kappe.renderOrder = -7; s.add(kappe);
+  }
+  k.boden = 0xb4ab9c;
+}
+
+const TUNNEL_P = 760, TUNNEL_L = 600, TUNNEL_H = 7;
+function tunnelBauen(k, r, pg, sg){
+  const P = TUNNEL_P, L = TUNNEL_L, H = TUNNEL_H, g = pg(P);
+  const wandTex = canvasTex(256, 128, (x, w, h) => {
+    x.fillStyle = '#a8a397'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 4000; i++){ const v = 140 + Math.random()*60 | 0; x.fillStyle = `rgba(${v},${v - 4},${v - 12},.25)`; x.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+    x.fillStyle = 'rgba(40,40,44,.55)'; for (let xx = 0; xx < w; xx += 64) x.fillRect(xx, 0, 3, h);
+    x.fillStyle = '#3b3d42'; x.fillRect(0, h - 22, w, 22);
+    x.fillStyle = '#e8e8e2'; x.fillRect(0, h - 26, w, 4);
+  });
+  wandTex.wrapS = THREE.RepeatWrapping; wandTex.repeat.set(L/8, 1);
+  const wandMat = new THREE.MeshStandardMaterial({ map:wandTex, roughness:0.85, color:0xb8b2a4, emissive:0x1c140a });
+  const deckeMat = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:1 });
+  const bergMat = new THREE.MeshStandardMaterial({ color:0x1a2018, roughness:1 });
+  const betonMat = new THREE.MeshStandardMaterial({ color:0x6d6a63, roughness:0.9 });
+  const lampeGeo = new THREE.BoxGeometry(0.5, 0.08, 1.6);
+  const proReihe = Math.floor(L/6), kp = kopien(P);
+  const lampen = new THREE.InstancedMesh(lampeGeo, new THREE.MeshBasicMaterial({ color:0xffb35c, toneMapped:false }), proReihe*2*kp);
+  const mm = new THREE.Matrix4();
+  let j = 0;
+  const schild = canvasTex(512, 72, (x, w, h) => {
+    x.fillStyle = '#0d1c38'; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#f3f5f7'; x.font = '700 44px "Barlow Semi Condensed", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('Blaue-Stunde-Tunnel · 600 m', w/2, h/2 + 2);
+  });
+  const schildMat = new THREE.MeshBasicMaterial({ map:schild, color:0xcccccc });
+  for (let t = 0; t < kp; t++){
+    const z0 = 30 - t*P, zm = z0 - L/2;
+    const rechts = new THREE.Mesh(new THREE.PlaneGeometry(L, H), wandMat); rechts.rotation.y = -Math.PI/2; rechts.position.set(9.7, H/2, zm); g.add(rechts);
+    const mitte = new THREE.Mesh(new THREE.PlaneGeometry(L, H), wandMat); mitte.rotation.y = Math.PI/2; mitte.position.set(-8.3, H/2, zm); g.add(mitte);
+    const gegen = new THREE.Mesh(new THREE.PlaneGeometry(L, H), wandMat); gegen.rotation.y = Math.PI/2; gegen.position.set(-22.8, H/2, zm); g.add(gegen);
+    const decke = new THREE.Mesh(new THREE.PlaneGeometry(32.6, L), deckeMat); decke.rotation.x = Math.PI/2; decke.position.set(-6.55, H, zm); g.add(decke);
+    const berg = new THREE.Mesh(new THREE.BoxGeometry(130, 24, L), bergMat); berg.position.set(-6, H + 0.2 + 12, zm); g.add(berg);
+    // Portal
+    const sturz = new THREE.Mesh(new THREE.BoxGeometry(33, 1.8, 1.4), betonMat); sturz.position.set(-6.55, H + 0.9, z0 + 0.5); g.add(sturz);
+    const aussenR = new THREE.Mesh(new THREE.BoxGeometry(40, H + 1.8, 1.4), betonMat); aussenR.position.set(9.7 + 20, (H + 1.8)/2, z0 + 0.5); g.add(aussenR);
+    const aussenL = new THREE.Mesh(new THREE.BoxGeometry(40, H + 1.8, 1.4), betonMat); aussenL.position.set(-22.8 - 20, (H + 1.8)/2, z0 + 0.5); g.add(aussenL);
+    const pfeiler = new THREE.Mesh(new THREE.BoxGeometry(0.9, H, 1.4), betonMat); pfeiler.position.set(-8.3, H/2, z0 + 0.5); g.add(pfeiler);
+    const tafel = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.26), schildMat); tafel.position.set(0.7, H + 0.95, z0 + 1.25); g.add(tafel);
+    for (let i = 0; i < proReihe; i++) [-1.9, 3.8].forEach(x => { mm.makeTranslation(x, H - 0.06, z0 - 3 - i*6); lampen.setMatrixAt(j++, mm); });
+  }
+  lampen.frustumCulled = false; g.add(lampen);
+  // Ein Licht wandert mit dem Auto und pulsiert im Takt der Deckenlampen
+  const s = sg();
+  const licht = new THREE.PointLight(0xffa850, 0, 40, 1.6); licht.position.set(1, H - 1.2, -4); s.add(licht);
+  k.licht = licht;
+  k.boden = 0xffffff;
+}
+// Steht der Spieler gerade in einer Tunnelröhre?
+const imTunnel = () => streckeJetzt() === 'tunnel' && ((distanz % TUNNEL_P) + 30) % TUNNEL_P <= TUNNEL_L;
+
+function streckeAnwenden(){
+  const id = streckeJetzt();
+  if (id !== 'land') kulisseBauen(id);
+  STRECKEN_IDS.forEach(s => { if (kulisse[s]) kulisse[s].gruppen.forEach(g => g.visible = s === id); });
+  baumGruppe.visible = id === 'land' || id === 'gebirge' || id === 'tunnel';
+  laternenGruppe.visible = id !== 'tunnel';
+  schildBruecke.gruppe.visible = id !== 'tunnel';
+  fern.berge.visible = fern.stadt.visible = id === 'land' || id === 'stadt';
+  boden.material.color.setHex(kulisse[id] ? kulisse[id].boden : 0xffffff);
+  // An der Küste steht der Mond über dem Meer
+  const mx = id === 'kueste' ? 480 : -480;
+  if (himmelDeko[1]) himmelDeko[1].position.x = mx;
+  if (himmelDeko[2]) himmelDeko[2].position.x = mx;
+  schildBruecke.zyklus = -1;
+  klang.meer(id === 'kueste');
+  $('streckeName').textContent = STRECKEN[strecke].name;
+  $('untertitel').textContent = STRECKEN[strecke].info;
+}
+function streckeWaehlen(schritt){
+  const i = STRECKEN_IDS.indexOf(strecke);
+  strecke = STRECKEN_IDS[(i + schritt + STRECKEN_IDS.length) % STRECKEN_IDS.length];
+  speicher.schreib('bs_strecke', strecke);
+  klang.init(); streckeAnwenden();
+}
+$('streckeZurueck').addEventListener('click', () => streckeWaehlen(-1));
+$('streckeVor').addEventListener('click', () => streckeWaehlen(1));
+$('streckeName').addEventListener('click', () => streckeWaehlen(1));
+
+// Seitenwind an der Küste: Böen vom Meer schieben das Auto zur Seite
+const wind = { t:8, an:0, richtung:-1 };
+function streckeAktualisieren(dt){
+  const id = streckeJetzt(), k = kulisse[id];
+  if (id === 'kueste' && k){
+    k.glitzer.offset.y = (k.glitzer.offset.y + dt*0.05) % 1;
+    k.dreh.rotation.y += dt*0.7;
+    if (zustand === 'fahrt'){
+      wind.t -= dt;
+      if (wind.t <= 0 && wind.an <= 0){
+        wind.an = 1.8; wind.richtung = zufall.wind() < 0.75 ? -1 : 1; wind.t = 9 + zufall.wind()*10;
+        meldung(`Seitenwind von ${wind.richtung < 0 ? 'rechts' : 'links'}!`, 2, true);
+        klang.rausch(2.2, 320, 0.4, 0.45, -wind.richtung*0.6, 0.5);
+      }
+      if (wind.an > 0){ wind.an -= dt; spielerX += wind.richtung*Math.sin(Math.min(1, 1 - wind.an/1.8)*Math.PI)*1.7*dt; }
+    } else wind.an = 0;
+  }
+  if (id === 'stadt' && k){ const an = Math.floor(performance.now()/700) % 2 === 0; k.dachLicht.forEach(l => l.material.opacity = an ? 0.9 : 0.15); }
+  const drin = imTunnel();
+  if (id === 'tunnel' && k){
+    const phase = (((distanz % TUNNEL_P) + 27) % 6)/6;
+    k.licht.intensity = drin ? 1.6 + 0.9*Math.cos(phase*Math.PI*2) : 0;
+  }
+  // im Tunnel regnet es nicht
+  const regenSoll = wetter === 'regen' && !drin;
+  if (regen.visible !== regenSoll){ regen.visible = regenSoll; klang.regenSetzen(regenSoll); }
 }
 
 /* ---------- Tempolinien & Funken ---------- */
@@ -1738,8 +2021,25 @@ const klang = {
     const rf = c.createBiquadFilter(); rf.type = 'highpass'; rf.frequency.value = 1400;
     this.regenGain = c.createGain(); this.regenGain.gain.value = this.regenAn ? 0.09 : 0;
     regenQ.connect(rf); rf.connect(this.regenGain); this.regenGain.connect(this.master); regenQ.start(0, 0.7);
+    if (this.meerAn) this.meer(true);
   },
   regenAn:false,
+  meerAn:false,
+  // Brandung: tiefes Rauschen, das langsam an- und abschwillt
+  meer(an){
+    this.meerAn = an;
+    if (!this.ctx) return;
+    if (!this.meerGain){
+      const c = this.ctx, q = c.createBufferSource(); q.buffer = this.rauschen; q.loop = true;
+      const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420;
+      const g = c.createGain(); g.gain.value = 0;
+      const lfo = c.createOscillator(); lfo.frequency.value = 0.11; const lg = c.createGain(); lg.gain.value = 0;
+      lfo.connect(lg); lg.connect(g.gain); q.connect(f); f.connect(g); g.connect(this.master); q.start(0, 0.3); lfo.start();
+      this.meerGain = g; this.meerLfo = lg;
+    }
+    const t = this.ctx.currentTime;
+    this.meerGain.gain.setTargetAtTime(an ? 0.07 : 0, t, 0.5); this.meerLfo.gain.setTargetAtTime(an ? 0.05 : 0, t, 0.5);
+  },
   // Martinshorn: zwei Töne im Wechsel, Lautstärke nach Abstand
   sirene(v){
     if (!this.ctx) return;
@@ -1847,7 +2147,7 @@ let rekord = speicher.lies('bs_rekord_' + stufe, 0);
 let laufMuenzen = 0, nitro = 0, nitroZeit = 0, schutzLadungen = 0, unverwundbar = 0, naechsteMuenzen = 0;
 const verkehr = [];
 // Zufallsquellen für Verkehr, Münzen und Baustellen. In der Tagesfahrt feste Folgen aus dem Datum.
-const zufall = { welle:Math.random, muenzen:Math.random, baustelle:Math.random, panne:Math.random };
+const zufall = { welle:Math.random, muenzen:Math.random, baustelle:Math.random, panne:Math.random, wind:Math.random };
 const SERIE = { lenkung:0, magnet:0, nitro:0, airbag:0, muenzwert:0 };
 // In der Tagesfahrt fahren alle mit dem Kestrel GT ohne Tuning
 const tuning = () => modus === 'tag' ? SERIE : stand.upgrades;
@@ -2212,8 +2512,7 @@ const tagesWetter = t => ['klar', 'klar', 'regen', 'nebel'][samen(t + ':wetter')
 function tagesRekord(){ const r = speicher.lies('bs_tagesrekord', null); return r && r.tag === tag ? r.punkte : 0; }
 function tagesInfoAnzeigen(){
   const t = tagHeute(), w = WETTER[tagesWetter(t)];
-  const [j, m, d] = t.split('-').map(Number);
-  $('tagesInfo').textContent = `${d}.${m}. · ${w.name}${w.bonus > 1 ? ' +' + Math.round((w.bonus - 1)*100) + ' %' : ''}`;
+  $('tagesInfo').textContent = `${STRECKEN[tagesStrecke(t)].name} · ${w.name}${w.bonus > 1 ? ' +' + Math.round((w.bonus - 1)*100) + ' %' : ''}`;
 }
 // Modi: frei (normale Fahrt), tag (Tagesfahrt), jagd (Polizei-Verfolgung).
 // Die Tagesfahrt überschreibt Stufe und Wetter und gibt sie beim Verlassen zurück.
@@ -2235,7 +2534,7 @@ function modusSetzen(neu){
   document.documentElement.classList.toggle('jagd', modus === 'jagd');
   rekord = rekordLesen();
   rekordAnzeigen();
-  if (warTag || neu === 'tag') wetterAnwenden();
+  if (warTag || neu === 'tag'){ wetterAnwenden(); streckeAnwenden(); }
 }
 // Punkte- und Münzfaktor des Modus: Die Verfolgung ist schwerer und bringt mehr
 const modusFaktor = () => modus === 'jagd' ? 1.25 : 1;
@@ -2245,9 +2544,11 @@ function zufallSetzen(){
     zufall.muenzen = zufallsfolge(samen(tag + ':muenzen'));
     zufall.baustelle = zufallsfolge(samen(tag + ':baustellen'));
     zufall.panne = zufallsfolge(samen(tag + ':pannen'));
-  } else zufall.welle = zufall.muenzen = zufall.baustelle = zufall.panne = Math.random;
+    zufall.wind = zufallsfolge(samen(tag + ':wind'));
+  } else zufall.welle = zufall.muenzen = zufall.baustelle = zufall.panne = zufall.wind = Math.random;
 }
 tagesInfoAnzeigen();
+streckeAnwenden();
 $('tagesfahrt').addEventListener('click', () => { modusSetzen('tag'); starten(); });
 $('verfolgung').addEventListener('click', () => { modusSetzen('jagd'); starten(); });
 $('zumMenue').addEventListener('click', () => {
@@ -2320,7 +2621,7 @@ function auftraegeAnzeigen(){
 }
 /* ---------- Erfolge ----------
    Dauerhafte Ziele über alle Fahrten. Jeder Erfolg gibt einmal Münzen. */
-const statistik = Object.assign({ km:0, knapp:0, fahrten:0, baustellen:0, muenzen:0, tage:[] }, speicher.lies('bs_statistik', {}));
+const statistik = Object.assign({ km:0, knapp:0, fahrten:0, baustellen:0, muenzen:0, tage:[], strecken:[] }, speicher.lies('bs_statistik', {}));
 const erreicht = new Set(speicher.lies('bs_erfolge', []));
 const ERFOLGE = [
   { id:'erste', name:'Erste Ausfahrt', text:'Eine Fahrt beenden', lohn:50, ok:g => g.fahrten >= 1 },
@@ -2339,13 +2640,15 @@ const ERFOLGE = [
   { id:'jagd', name:'Entkommen', text:'5 km in der Verfolgung', lohn:400, ok:(g, l) => modus === 'jagd' && l.km >= 5 },
   { id:'tage', name:'Stammgast', text:'An 7 Tagen die Tagesfahrt fahren', lohn:500, ok:g => g.tage >= 7 },
   { id:'muenzen', name:'Sparschwein', text:'1.000 Münzen auf der Straße einsammeln', lohn:300, ok:g => g.muenzen >= 1000 },
+  { id:'strecken', name:'Rundreise', text:'Auf allen 5 Strecken je 3 km in einer Fahrt', lohn:600, ok:g => g.strecken >= 5 },
   { id:'fuhrpark', name:'Fuhrpark', text:'Alle Autos besitzen', lohn:1000, ok:() => Object.keys(AUTOS).every(a => stand.autos.includes(a)) }
 ];
 // Gesamtwerte inklusive der laufenden Fahrt (die erst am Ende in die Statistik gebucht wird)
 function gesamtWerte(mitLauf){
   const l = mitLauf ? lauf : neuerLauf();
   const tage = new Set(statistik.tage); if (mitLauf && modus === 'tag') tage.add(tag);
-  return { km:statistik.km + l.km, knapp:statistik.knapp + l.knapp, fahrten:statistik.fahrten, baustellen:statistik.baustellen + l.baustellen, muenzen:statistik.muenzen + l.muenzen, tage:tage.size };
+  const strecken = new Set(statistik.strecken); if (mitLauf && l.km >= 3) strecken.add(streckeJetzt());
+  return { strecken:strecken.size, km:statistik.km + l.km, knapp:statistik.knapp + l.knapp, fahrten:statistik.fahrten, baustellen:statistik.baustellen + l.baustellen, muenzen:statistik.muenzen + l.muenzen, tage:tage.size };
 }
 let laufGebucht = true;
 function statistikBuchen(){
@@ -2354,6 +2657,7 @@ function statistikBuchen(){
   statistik.km += lauf.km; statistik.knapp += lauf.knapp; statistik.fahrten++;
   statistik.baustellen += lauf.baustellen; statistik.muenzen += lauf.muenzen;
   if (modus === 'tag' && !statistik.tage.includes(tag)) statistik.tage = [...statistik.tage, tag].slice(-60);
+  if (lauf.km >= 3 && !statistik.strecken.includes(streckeJetzt())) statistik.strecken = [...statistik.strecken, streckeJetzt()];
   speicher.schreib('bs_statistik', statistik);
 }
 function erfolgePruefen(){
@@ -2457,7 +2761,8 @@ function starten(){
   $('hud').classList.add('an'); $('tipp').style.opacity = 0.8;
   setTimeout(() => $('tipp').style.opacity = 0, 4500);
   meldungZeit = 0;
-  if (modus === 'tag') meldung(`Tagesfahrt · ${WETTER[wetter].name} · Kestrel GT ohne Tuning`, 4);
+  if (modus === 'tag') meldung(`Tagesfahrt · ${STRECKEN[streckeJetzt()].name} · ${WETTER[wetter].name} · Kestrel GT ohne Tuning`, 4);
+  wind.t = 6 + zufall.wind()*6; wind.an = 0;
   if (modus === 'jagd') meldung('Die Polizei ist hinter dir! Gas geben, knappe Manöver bringen Abstand.', 4.5, true);
   canvas.focus && canvas.focus();
 }
@@ -2651,7 +2956,7 @@ function update(dt){
     if (u.panne){
       const an = Math.floor(performance.now()/420) % 2 === 0;
       u.blinker.forEach(b => b.material.opacity = an ? 1 : 0);
-      if (!u.gemeldet && fahrt && a.position.z > -260){ u.gemeldet = true; meldung(`Panne auf der ${['linken', 'mittleren', 'rechten'][u.spur]} Spur`, 3, true); }
+      if (!u.gemeldet && fahrt && a.position.z > -260){ u.gemeldet = true; meldung(`${u.fels ? 'Steinschlag' : 'Panne'} auf der ${['linken', 'mittleren', 'rechten'][u.spur]} Spur`, 3, true); }
     }
     let wunsch = u.basisV;
     if (luecke < 28) wunsch = Math.min(wunsch, vorV - (28 - luecke)*0.12);
@@ -2743,6 +3048,7 @@ function update(dt){
   }
   baustelleAktualisieren(dt);
   jagdAktualisieren(dt);
+  streckeAktualisieren(dt);
   geistZeigen(dt);
   tageszeitAktualisieren(dt);
   meldungZeit = Math.max(0, meldungZeit - dt);

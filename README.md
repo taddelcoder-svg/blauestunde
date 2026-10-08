@@ -15,6 +15,18 @@ Endloses 3D-Nachtfahrt-Spiel im Browser (three.js). Weiche dem Verkehr aus – j
 - **Tageszeit:** Bei klarem Wetter wandert der Himmel mit der Strecke von der Dämmerung in die Nacht und ins Morgengrauen.
 - **Neue Autos:** Nomad SUV (zwei Airbags extra, schwerfällig) und Phantom EV (Nitro lädt doppelt so schnell, 10 % mehr Punkte).
 
+## Strecken
+
+Im Menü unter „Strecke“ wählbar (die Tagesfahrt bringt ihre eigene mit):
+
+- **Land:** Wald, Berge und die Skyline am Horizont (die bisherige Strecke).
+- **Stadt:** Hochhäuser mit beleuchteten Fenstern, Flugwarnlichter, Leuchtreklame.
+- **Küste:** Meer mit Glitzerpfad des Mondes, Strand, Leuchtturm mit kreisendem Strahl, Brandung. Seitenwind-Böen schieben das Auto zur Seite.
+- **Gebirge:** Felswände, Schneegipfel am Horizont. Statt Pannenautos gibt es Steinschlag auf der Fahrbahn.
+- **Tunnel:** 600 m lange Röhren mit Natriumlicht und kurzen offenen Stücken dazwischen. Im Tunnel regnet es nicht.
+
+Für die Bestenliste zählt die Strecke nicht extra, alle Strecken werden gleich gewertet.
+
 ## Online-Funktionen
 
 - **Fahrername:** einmal wählen (ohne Passwort). Der Name wird auf dem Gerät gespeichert und ist weltweit eindeutig.
