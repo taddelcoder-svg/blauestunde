@@ -16,6 +16,7 @@ const STUFEN = ['leicht', 'normal', 'schwer'];
 const RENNEN_DAUER = 180_000;   // ms
 const COUNTDOWN = 4_000;         // ms
 const LISTE_LAENGE = 25;
+const TAGE_BEHALTEN = 14;        // so viele Tagesbestenlisten bleiben gespeichert
 
 /* ---------- Plausibilität ----------
    Obergrenzen aus den Spielregeln in index.html (STUFEN, AUTOS, Nitro):
@@ -28,8 +29,17 @@ function maxPunkte(stufe, km, knapp){
   const r = REGELN[stufe], mult = r.faktor*1.15*2;
   const fahrt = km*1000*0.432*2.05*mult;                       // Grundpunkte pro Meter bei voller Combo
   const proKnapp = (60 + 0.6*r.vmax)*8*mult;
-  return 2000 + 1.1*(fahrt + Math.min(knapp, km*KNAPP_PRO_KM + 20)*proKnapp);
+  const baustellen = km*400;                                    // Bonus für Baustellen ohne Kratzer
+  return 2000 + 1.1*(fahrt + baustellen + Math.min(knapp, km*KNAPP_PRO_KM + 20)*proKnapp);
 }
+
+/* ---------- Tagesfahrt ----------
+   Jeden Tag (deutsche Zeit) fahren alle dieselbe Strecke auf Normal mit dem Serienauto.
+   Gewertet wird in einer eigenen Liste pro Tag. Eine Fahrt kurz vor Mitternacht darf noch für gestern zählen. */
+const tagFormat = new Intl.DateTimeFormat('sv-SE', { timeZone:'Europe/Berlin' });
+const tagVon = ms => tagFormat.format(new Date(ms));
+const tagHeute = () => tagVon(Date.now());
+const tagGueltig = t => typeof t === 'string' && (t === tagHeute() || t === tagVon(Date.now() - 3_600_000*6));
 
 /* ---------- Speicher ----------
    Mit SUPABASE_URL und SUPABASE_SERVICE_KEY liegen Namen und Bestenliste als
@@ -42,10 +52,10 @@ const MIT_SUPABASE = !!(SUPABASE_URL && SUPABASE_KEY);
 const SPEICHER_TABELLE = `${SUPABASE_URL}/rest/v1/blauestunde_speicher`;
 const supabaseKopf = { apikey:SUPABASE_KEY, Authorization:'Bearer ' + SUPABASE_KEY };
 
-let db = { spieler:{}, bestwerte:{ leicht:{}, normal:{}, schwer:{} } };
+let db = { spieler:{}, bestwerte:{ leicht:{}, normal:{}, schwer:{} }, tage:{} };
 function uebernehmen(geladen){
   if (!geladen) return;
-  db = { spieler:geladen.spieler || {}, bestwerte:Object.assign(db.bestwerte, geladen.bestwerte || {}) };
+  db = { spieler:geladen.spieler || {}, bestwerte:Object.assign(db.bestwerte, geladen.bestwerte || {}), tage:geladen.tage || {} };
 }
 async function laden(){
   if (!MIT_SUPABASE){
@@ -116,8 +126,8 @@ function spielerAusToken(token){
 }
 
 /* ---------- Bestenliste ---------- */
-function bestenliste(stufe){
-  return Object.entries(db.bestwerte[stufe] || {})
+function bestenliste(stufe, tabelle = db.bestwerte[stufe]){
+  return Object.entries(tabelle || {})
     .filter(([id]) => db.spieler[id])
     .sort((a, b) => b[1].punkte - a[1].punkte)
     .map(([id, w], i) => ({ platz:i + 1, id, name:db.spieler[id].name, olymp:!!db.spieler[id].olymp, punkte:w.punkte, strecke:w.strecke, datum:w.datum }));
@@ -128,6 +138,17 @@ function bestwertEintragen(stufe, id, punkte, strecke){
   const alt = db.bestwerte[stufe][id];
   if (alt && punkte <= alt.punkte) return false;
   db.bestwerte[stufe][id] = { punkte, strecke:Math.round(strecke*10)/10, datum:Date.now() };
+  speichern();
+  return true;
+}
+function tageswertEintragen(tag, id, punkte, strecke){
+  const liste = db.tage[tag] || (db.tage[tag] = {});
+  const alt = liste[id];
+  if (alt && punkte <= alt.punkte) return false;
+  liste[id] = { punkte, strecke:Math.round(strecke*10)/10, datum:Date.now() };
+  // alte Tage aufräumen
+  const tage = Object.keys(db.tage).sort();
+  while (tage.length > TAGE_BEHALTEN) delete db.tage[tage.shift()];
   speichern();
   return true;
 }
@@ -228,11 +249,13 @@ const server = http.createServer(async (req, res) => {
     }
     // Bestenliste
     if (req.method === 'GET' && url.pathname === '/api/bestenliste'){
-      const stufe = STUFEN.includes(url.searchParams.get('stufe')) ? url.searchParams.get('stufe') : 'normal';
-      const alle = bestenliste(stufe);
+      const gewaehlt = url.searchParams.get('stufe');
+      const stufe = gewaehlt === 'tag' || STUFEN.includes(gewaehlt) ? gewaehlt : 'normal';
+      const tag = tagHeute();
+      const alle = stufe === 'tag' ? bestenliste('normal', db.tage[tag]) : bestenliste(stufe);
       const s = spielerAusToken(tokenAus(req));
       const ich = s ? alle.find(e => e.id === s.id) || null : null;
-      return json(res, 200, { stufe, eintraege:alle.slice(0, LISTE_LAENGE), ich, gesamt:alle.length });
+      return json(res, 200, { stufe, tag:stufe === 'tag' ? tag : undefined, eintraege:alle.slice(0, LISTE_LAENGE), ich, gesamt:alle.length });
     }
     // Ergebnis einer Fahrt
     if (req.method === 'POST' && url.pathname === '/api/ergebnis'){
@@ -245,6 +268,15 @@ const server = http.createServer(async (req, res) => {
       if (!stufe || !Number.isFinite(punkte) || punkte < 0 || !Number.isFinite(dauer) || dauer <= 0 || dauer > 6*3600
         || !Number.isFinite(strecke) || strecke < 0 || strecke > maxStreckeKm(stufe, dauer)
         || punkte > maxPunkte(stufe, strecke, knapp)) return json(res, 400, { fehler:'Ergebnis nicht plausibel.' });
+      if (e.tag !== undefined){
+        // Tagesfahrt: eigene Liste, zählt nicht in der normalen Bestenliste
+        if (stufe !== 'normal') return json(res, 400, { fehler:'Die Tagesfahrt gibt es nur auf Normal.' });
+        if (!tagGueltig(e.tag)) return json(res, 400, { fehler:'Diese Tagesfahrt ist schon vorbei.' });
+        const neu = tageswertEintragen(e.tag, s.id, punkte, strecke);
+        const alle = bestenliste('normal', db.tage[e.tag]);
+        const ich = alle.find(x => x.id === s.id);
+        return json(res, 200, { neuerBestwert:neu, platz:ich ? ich.platz : null, gesamt:alle.length, bester:ich ? ich.punkte : punkte, tag:e.tag });
+      }
       const neu = bestwertEintragen(stufe, s.id, punkte, strecke);
       const alle = bestenliste(stufe);
       const ich = alle.find(x => x.id === s.id);
