@@ -1870,8 +1870,10 @@ function tunnelBauen(k, r, pg, sg){
   wandTex.wrapS = THREE.RepeatWrapping; wandTex.repeat.set(L/8, 1);
   const wandMat = new THREE.MeshStandardMaterial({ map:wandTex, roughness:0.85, color:0xb8b2a4, emissive:0x1c140a });
   const deckeMat = new THREE.MeshStandardMaterial({ color:0x26262a, roughness:1 });
-  const bergMat = new THREE.MeshStandardMaterial({ color:0x1a2018, roughness:1 });
-  const betonMat = new THREE.MeshStandardMaterial({ color:0x6d6a63, roughness:0.9 });
+  const bergMat = new THREE.MeshStandardMaterial({ color:0x0b110a, roughness:1, flatShading:true });
+  const betonMat = new THREE.MeshStandardMaterial({ color:0x2e2d2a, roughness:0.9 });
+  // runder Hügel über der Röhre (obere Hälfte eines gestauchten Ellipsoids)
+  const huegelGeo = new THREE.SphereGeometry(1, 18, 6, 0, Math.PI*2, 0, Math.PI/2);
   const lampeGeo = new THREE.BoxGeometry(0.5, 0.08, 1.6);
   const proReihe = Math.floor(L/6), kp = kopien(P);
   const lampen = new THREE.InstancedMesh(lampeGeo, new THREE.MeshBasicMaterial({ color:0xffb35c, toneMapped:false }), proReihe*2*kp);
@@ -1889,11 +1891,11 @@ function tunnelBauen(k, r, pg, sg){
     const mitte = new THREE.Mesh(new THREE.PlaneGeometry(L, H), wandMat); mitte.rotation.y = Math.PI/2; mitte.position.set(-8.3, H/2, zm); g.add(mitte);
     const gegen = new THREE.Mesh(new THREE.PlaneGeometry(L, H), wandMat); gegen.rotation.y = Math.PI/2; gegen.position.set(-22.8, H/2, zm); g.add(gegen);
     const decke = new THREE.Mesh(new THREE.PlaneGeometry(32.6, L), deckeMat); decke.rotation.x = Math.PI/2; decke.position.set(-6.55, H, zm); g.add(decke);
-    const berg = new THREE.Mesh(new THREE.BoxGeometry(130, 24, L), bergMat); berg.position.set(-6, H + 0.2 + 12, zm); g.add(berg);
+    const berg = new THREE.Mesh(huegelGeo, bergMat); berg.scale.set(72, 26, L*0.5); berg.position.set(-6.5, H + 0.15, zm); g.add(berg);
     // Portal
-    const sturz = new THREE.Mesh(new THREE.BoxGeometry(33, 1.8, 1.4), betonMat); sturz.position.set(-6.55, H + 0.9, z0 + 0.5); g.add(sturz);
-    const aussenR = new THREE.Mesh(new THREE.BoxGeometry(40, H + 1.8, 1.4), betonMat); aussenR.position.set(9.7 + 20, (H + 1.8)/2, z0 + 0.5); g.add(aussenR);
-    const aussenL = new THREE.Mesh(new THREE.BoxGeometry(40, H + 1.8, 1.4), betonMat); aussenL.position.set(-22.8 - 20, (H + 1.8)/2, z0 + 0.5); g.add(aussenL);
+    const sturz = new THREE.Mesh(new THREE.BoxGeometry(85, 6.5, 1.4), betonMat); sturz.position.set(-6.5, H + 3.25, z0 + 0.5); g.add(sturz);
+    const aussenR = new THREE.Mesh(new THREE.BoxGeometry(26, H, 1.4), betonMat); aussenR.position.set(9.7 + 13, H/2, z0 + 0.5); g.add(aussenR);
+    const aussenL = new THREE.Mesh(new THREE.BoxGeometry(26, H, 1.4), betonMat); aussenL.position.set(-22.8 - 13, H/2, z0 + 0.5); g.add(aussenL);
     const pfeiler = new THREE.Mesh(new THREE.BoxGeometry(0.9, H, 1.4), betonMat); pfeiler.position.set(-8.3, H/2, z0 + 0.5); g.add(pfeiler);
     const tafel = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.26), schildMat); tafel.position.set(0.7, H + 0.95, z0 + 1.25); g.add(tafel);
     for (let i = 0; i < proReihe; i++) [-1.9, 3.8].forEach(x => { mm.makeTranslation(x, H - 0.06, z0 - 3 - i*6); lampen.setMatrixAt(j++, mm); });
