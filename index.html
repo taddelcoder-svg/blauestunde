@@ -2822,7 +2822,8 @@ function update(dt){
     kamera.fov += (55 - kamera.fov)*Math.min(1, dt*2);
   } else {
     const z = zustand === 'crash' || zustand === 'ende' ? 9 : 6.6 + tf*0.6;
-    const h = zustand === 'crash' || zustand === 'ende' ? 3.4 : 2.25 - tf*0.15;
+    // hohe Autos (SUV): Kamera etwas höher, damit das Dach nicht die Spur verdeckt
+    const h = (zustand === 'crash' || zustand === 'ende' ? 3.4 : 2.25 - tf*0.15) + (spieler.userData.typ === 'suv' ? 0.6 : 0);
     kamZiel.set(spielerX*0.82, h, z);
     blickZiel.set(spielerX*0.9 + spielerVX*0.15, 0.95, -14);
     kamera.position.lerp(kamZiel, Math.min(1, dt*(zustand === 'fahrt' ? 5 : 1.5)));
