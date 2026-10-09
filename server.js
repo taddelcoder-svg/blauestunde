@@ -8,7 +8,6 @@ const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const zugang = require('./zugang')({ titel:'Blaue Stunde' });
 const olymp = require('./olymp')({ spiel:'blauestunde' });
-const crew = require('./crew')({ hatZugang:zugang.hatZugang });
 
 const PORT = Number(process.env.PORT) || 10000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -177,7 +176,6 @@ setInterval(() => { const j = Date.now(); for (const [k, e] of zaehler) if (j > 
 /* ---------- HTTP ---------- */
 const INDEX = path.join(__dirname, 'index.html');
 const DATENSCHUTZ = path.join(__dirname, 'datenschutz.html');
-const CREW = path.join(__dirname, 'crew.html');
 const VENDOR = path.join(__dirname, 'vendor');
 const TYPEN = { '.js':'text/javascript; charset=utf-8', '.woff2':'font/woff2', '.txt':'text/plain; charset=utf-8' };
 function json(res, status, daten){
@@ -202,11 +200,6 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
       return fs.createReadStream(DATENSCHUTZ).pipe(res);
     }
-    // Kurzer Link zum Crew-Spiel; die Weiterleitung landet bei Bedarf auf der Passwortseite
-    if (req.method === 'GET' && (url.pathname === '/crew' || url.pathname === '/crew/')){
-      res.writeHead(302, { Location:'/crew.html' });
-      return res.end();
-    }
     if (zugang.pruefen(req, res)) return;
     // Selbst ausgelieferte Schriften und three.js (keine Verbindung zu Google oder CDNs)
     const vendor = /^\/vendor\/([\w-]+(?:\.[\w-]+)*\.(js|woff2|txt))$/.exec(url.pathname);
@@ -219,10 +212,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')){
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
       return fs.createReadStream(INDEX).pipe(res);
-    }
-    if (req.method === 'GET' && url.pathname === '/crew.html'){
-      res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
-      return fs.createReadStream(CREW).pipe(res);
     }
     if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { ok:true });
 
@@ -302,14 +291,7 @@ const server = http.createServer(async (req, res) => {
 /* ---------- Online & Rennen ----------
    Es gibt die eine offene Lobby für alle und zusätzlich je eine eigene Lobby pro Olympia-Lauf.
    Olympia-Fahrer kommen mit einem signierten Ticket statt mit einem Fahrernamen. */
-const wss = new WebSocketServer({ noServer:true, maxPayload:4096 });
-// Zwei WebSocket-Dienste auf einem Server: /ws für die Rennen, /crew/ws für „Verräter an Bord“
-server.on('upgrade', (req, socket, kopf) => {
-  const pfad = new URL(req.url, 'http://x').pathname;
-  if (pfad === '/crew/ws') return crew.upgrade(req, socket, kopf);
-  if (pfad !== '/ws' || !zugang.hatZugang(req)){ socket.write('HTTP/1.1 ' + (pfad === '/ws' ? '401 Unauthorized' : '404 Not Found') + '\r\n\r\n'); socket.destroy(); return; }
-  wss.handleUpgrade(req, socket, kopf, ws => wss.emit('connection', ws, req));
-});
+const wss = new WebSocketServer({ server, path:'/ws', maxPayload:4096, verifyClient:({ req }) => zugang.hatZugang(req) });
 const verbindungen = new Set();   // ws mit ws.spieler = {id, name} und ws.lobby
 function neueLobby(olympia){
   return {
