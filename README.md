@@ -15,6 +15,20 @@ Endloses 3D-Nachtfahrt-Spiel im Browser (three.js). Weiche dem Verkehr aus – j
 - **Tageszeit:** Bei klarem Wetter wandert der Himmel mit der Strecke von der Dämmerung in die Nacht und ins Morgengrauen.
 - **Neue Autos:** Nomad SUV (zwei Airbags extra, schwerfällig) und Phantom EV (Nitro lädt doppelt so schnell, 10 % mehr Punkte).
 
+## Verräter an Bord (Crew-Spiel)
+
+Ein zweites Spiel im Stil von „Among Us“, erreichbar unter `/crew` (oder über den Knopf im Hauptmenü). Läuft nur mit Server.
+
+- **Räume:** Einer erstellt einen Raum und bekommt einen Code aus 4 Buchstaben, die anderen treten mit Code oder Link bei. Name und Farbe sind frei wählbar, ohne Anmeldung. Bis zu 12 Spieler, ab 4 geht es los. Fehlende Mitspieler füllt der Gastgeber mit **Bots** auf.
+- **Rollen:** Die Crew erledigt Aufgaben auf dem Raumschiff (Kabel verbinden, Zahlen drücken, Daten laden, Tanken, Karte durchziehen, Kalibrieren, Asteroiden abschießen, Körperscan). Die Verräter töten, kriechen durch Lüftungsschächte und sabotieren (Licht aus, Reaktor-Kernschmelze).
+- **Besprechungen:** Leichen melden oder den Notfallknopf in der Kantine drücken, dann wird diskutiert (Chat) und abgestimmt. Tote spielen als Geister weiter, sehen andere Geister, machen Aufgaben und schreiben im Geister-Chat.
+- **Sieg:** Crew gewinnt, wenn alle Aufgaben erledigt oder alle Verräter rausgeworfen sind. Verräter gewinnen bei Gleichstand der Zahl oder wenn der Reaktor durchbrennt.
+- **Einstellungen (Gastgeber):** Anzahl Verräter, Abklingzeit fürs Töten, Aufgaben pro Person, Diskussions- und Abstimmzeit, Rolle beim Rauswurf zeigen.
+- **Steuerung:** WASD/Pfeiltasten, E benutzen, R melden, Q töten, V Schacht, F Sabotage, M Karte. Auf Touch-Geräten: irgendwo hintippen und ziehen zum Laufen, Knöpfe rechts unten.
+- Wer kurz die Verbindung verliert (Handy gesperrt), kommt im selben Tab automatisch zurück ins laufende Spiel.
+
+Technik: `crew.js` (Spiellogik, Karte und Bots auf dem Server, WebSocket unter `/crew/ws`) und `crew.html` (Client mit Canvas). Räume liegen nur im Arbeitsspeicher.
+
 ## Online-Funktionen
 
 - **Fahrername:** einmal wählen (ohne Passwort). Der Name wird auf dem Gerät gespeichert und ist weltweit eindeutig.

@@ -3,7 +3,7 @@ WORKDIR /app
 ENV NODE_ENV=production PORT=10000 DATA_DIR=/app/data
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-COPY server.js zugang.js olymp.js index.html datenschutz.html ./
+COPY server.js zugang.js olymp.js crew.js index.html crew.html datenschutz.html ./
 COPY vendor ./vendor
 EXPOSE 10000
 CMD ["node", "server.js"]
