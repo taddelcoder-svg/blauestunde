@@ -3555,5 +3555,16 @@ if (!IST_TOUCH) setTimeout(() => $('start').focus({ preventScroll:true }), 100);
   if (document.body) bauen(); else document.addEventListener('DOMContentLoaded', bauen);
 })();
 </script>
+
+<!-- Rangliste der Spielesammlung: meldet Spielzeit, Punkte und Progress -->
+<script>
+window.SLRangAdapter=function(){
+  var l=function(k,d){try{var v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}};
+  var p=0;['leicht','normal','schwer'].forEach(function(s){p=Math.max(p,+l('bs_rekord_'+s,0)||0,+l('bs_rekord_jagd_'+s,0)||0)});
+  var t=l('bs_tagesrekord',null);if(t&&t.punkte)p=Math.max(p,t.punkte);
+  var e=l('bs_erfolge',[]);return{punkte:p,progress:Math.min(100,(e&&e.length||0)/17*100)}
+};
+</script>
+<script src="https://rangliste-aoee.onrender.com/melder.js" data-spiel="Blaue Stunde" defer></script>
 </body>
 </html>
